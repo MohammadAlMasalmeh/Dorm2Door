@@ -1,0 +1,13 @@
+{
+  "name": "dorm2door-scripts",
+  "version": "1.0.0",
+  "description": "Supabase client and test scripts for Dorm2Door",
+  "main": "client.js",
+  "scripts": {
+    "test": "node test-db.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^16.4.0"
+  }
+}
