@@ -19,7 +19,7 @@ export default function ProviderProfile({ session }) {
   async function fetchProvider() {
     const { data } = await supabase
       .from('providers')
-      .select('*, users (display_name, email), services (*)')
+      .select('*, users (display_name, email, avatar_url), services (*)')
       .eq('id', id)
       .single()
     setProvider(data)
@@ -29,7 +29,7 @@ export default function ProviderProfile({ session }) {
   async function fetchReviews() {
     const { data } = await supabase
       .from('reviews')
-      .select('rating, comment, created_at')
+      .select('rating, comment, created_at, users!reviews_consumer_id_fkey (display_name, avatar_url)')
       .eq('provider_id', id)
       .order('created_at', { ascending: false })
     setReviews(data || [])
@@ -52,7 +52,11 @@ export default function ProviderProfile({ session }) {
 
       {/* Profile header */}
       <div className="profile-header">
-        <div className="profile-avatar">{initials}</div>
+        {provider.users?.avatar_url ? (
+          <img src={provider.users.avatar_url} alt="" className="profile-avatar profile-avatar-img" />
+        ) : (
+          <div className="profile-avatar">{initials}</div>
+        )}
         <div style={{ flex: 1 }}>
           <div className="profile-name">{name}</div>
           {provider.location && (
@@ -157,10 +161,21 @@ export default function ProviderProfile({ session }) {
           {reviews.map((r, i) => (
             <div key={i} className="review-card">
               <div className="review-header">
-                <Stars value={r.rating} size="0.9rem" />
-                <span style={{ fontSize: '0.75rem', color: '#aaa' }}>
-                  {new Date(r.created_at).toLocaleDateString()}
-                </span>
+                <div className="review-reviewer">
+                  {r.users?.avatar_url ? (
+                    <img src={r.users.avatar_url} alt="" className="review-avatar" />
+                  ) : (
+                    <div className="review-avatar review-avatar-initials">
+                      {(r.users?.display_name || '?').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                    </div>
+                  )}
+                  <div>
+                    <span className="review-reviewer-name">{r.users?.display_name || 'Anonymous'}</span>
+                    <span className="review-meta">
+                      <Stars value={r.rating} size="0.9rem" /> · {new Date(r.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
               </div>
               {r.comment && <p className="review-comment">{r.comment}</p>}
             </div>

@@ -7,6 +7,7 @@ import ProviderProfile from './pages/ProviderProfile'
 import BookAppointment from './pages/BookAppointment'
 import Appointments from './pages/Appointments'
 import ProviderSetup from './pages/ProviderSetup'
+import Profile from './pages/Profile'
 import Nav from './components/Nav'
 
 export default function App() {
@@ -56,6 +57,7 @@ export default function App() {
           <Route path="/book/:providerId/:serviceId" element={<BookAppointment session={session} />} />
           <Route path="/appointments" element={<Appointments session={session} userProfile={userProfile} />} />
           <Route path="/my-services" element={<ProviderSetup session={session} userProfile={userProfile} onUpdate={() => fetchProfile(session.user.id)} />} />
+          <Route path="/profile" element={<Profile session={session} userProfile={userProfile} onUpdate={() => fetchProfile(session.user.id)} />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>

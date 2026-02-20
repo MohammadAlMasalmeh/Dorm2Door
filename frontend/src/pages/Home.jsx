@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect, useMemo } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 
 const ALL_TAGS = ['delivery', 'groceries', 'tutoring', 'cleaning', 'laundry', 'errands', 'photography', 'tech support']
@@ -13,40 +13,42 @@ function tagEmoji(tag) { return TAG_EMOJI[tag] || '🎓' }
 
 function Stars({ value }) {
   const n = Math.round(value || 0)
-  return <span style={{ color: '#f0a500', fontSize: '0.8rem' }}>{'★'.repeat(n)}{'☆'.repeat(5 - n)}</span>
+  return <span className="rating-stars">{'★'.repeat(n)}{'☆'.repeat(5 - n)}</span>
 }
 
 export default function Home() {
+  const [searchParams] = useSearchParams()
+  const query = (searchParams.get('q') || '').trim().toLowerCase()
+
   const [providers, setProviders]   = useState([])
   const [loading, setLoading]       = useState(true)
-  const [activeTags, setActiveTags] = useState(new Set()) // multi-select
-  const [sortBy, setSortBy]         = useState('rating')  // rating | newest
+  const [activeTags, setActiveTags] = useState(new Set())
+  const [sortBy, setSortBy]         = useState('rating')
 
   useEffect(() => { fetchProviders() }, [activeTags, sortBy])
 
   async function fetchProviders() {
     setLoading(true)
-
     let q = supabase
       .from('providers')
-      .select('id, bio, tags, avg_rating, location, users (display_name), services (image_url)')
-
-    // Multi-tag filter: providers who offer ANY of the selected tags
-    if (activeTags.size > 0) {
-      q = q.overlaps('tags', [...activeTags])
-    }
-
-    // Sort
-    if (sortBy === 'rating') {
-      q = q.order('avg_rating', { ascending: false })
-    } else {
-      q = q.order('id', { ascending: false })
-    }
-
+      .select('id, bio, tags, avg_rating, location, users (display_name, avatar_url), services (image_url)')
+    if (activeTags.size > 0) q = q.overlaps('tags', [...activeTags])
+    if (sortBy === 'rating') q = q.order('avg_rating', { ascending: false })
+    else q = q.order('id', { ascending: false })
     const { data } = await q
     setProviders(data || [])
     setLoading(false)
   }
+
+  const filtered = useMemo(() => {
+    if (!query) return providers
+    return providers.filter(p => {
+      const name = (p.users?.display_name || '').toLowerCase()
+      const tagStr = (p.tags || []).join(' ').toLowerCase()
+      const bio = (p.bio || '').toLowerCase()
+      return name.includes(query) || tagStr.includes(query) || bio.includes(query)
+    })
+  }, [providers, query])
 
   function toggleTag(tag) {
     setActiveTags(prev => {
@@ -56,128 +58,91 @@ export default function Home() {
     })
   }
 
-  function clearFilters() { setActiveTags(new Set()) }
-
-  // Pick the first service image for the card hero
   function cardImage(p) {
-    const img = p.services?.find(s => s.image_url)?.image_url
-    return img || null
+    return p.services?.find(s => s.image_url)?.image_url || null
   }
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">Browse Providers</h1>
-        <p className="page-subtitle">Find students offering services near you</p>
-      </div>
-
-      {/* Controls row */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 16 }}>
-        {/* Multi-tag filter */}
-        <div className="filter-bar" style={{ marginBottom: 0, flex: 1 }}>
+    <div className="with-sidebar">
+      <aside className="sidebar">
+        <p className="sidebar-title">Filter by</p>
+        <div className="sidebar-filters">
           {ALL_TAGS.map(t => (
-            <span
+            <button
               key={t}
-              className={`tag filter-tag${activeTags.has(t) ? ' active' : ''}`}
+              type="button"
+              className={`sidebar-filter-btn${activeTags.has(t) ? ' active' : ''}`}
               onClick={() => toggleTag(t)}
             >
               {t}
-            </span>
+            </button>
           ))}
           {activeTags.size > 0 && (
-            <span
-              className="tag filter-tag"
-              onClick={clearFilters}
-              style={{ borderColor: 'var(--danger)', color: 'var(--danger)', background: 'rgba(224,82,82,0.1)' }}
-            >
-              ✕ Clear ({activeTags.size})
-            </span>
-          )}
-        </div>
-
-        {/* Sort */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted-dark)' }}>Sort</span>
-          <select
-            value={sortBy}
-            onChange={e => setSortBy(e.target.value)}
-            style={{
-              background: 'var(--surface)', color: 'var(--text-on-dark)',
-              border: '1px solid var(--border-dark)', borderRadius: 6,
-              padding: '6px 10px', fontSize: '0.82rem', cursor: 'pointer', outline: 'none',
-            }}
-          >
-            <option value="rating">Top Rated</option>
-            <option value="newest">Newest</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Active filter summary */}
-      {activeTags.size > 0 && (
-        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted-dark)', marginBottom: 16 }}>
-          Showing providers offering:{' '}
-          <strong style={{ color: 'var(--text-on-dark)' }}>{[...activeTags].join(', ')}</strong>
-        </div>
-      )}
-
-      {loading ? (
-        <div className="loading-wrap"><div className="spinner" /></div>
-      ) : providers.length === 0 ? (
-        <div className="empty-state">
-          <h3>No providers found</h3>
-          <p>
-            {activeTags.size > 0
-              ? `No one is offering those services yet.`
-              : 'Be the first to offer a service!'}
-          </p>
-          {activeTags.size > 0 && (
-            <button className="btn btn-outline" style={{ marginTop: 16 }} onClick={clearFilters}>
+            <button type="button" className="sidebar-filter-btn clear" onClick={() => setActiveTags(new Set())}>
               Clear filters
             </button>
           )}
         </div>
-      ) : (
-        <div className="provider-grid">
-          {providers.map(p => {
-            const img = cardImage(p)
-            return (
-              <Link key={p.id} to={`/provider/${p.id}`} className="provider-card">
-                <div className="provider-card-img" style={img ? {
-                  backgroundImage: `url(${img})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                } : {}}>
-                  {!img && tagEmoji(p.tags?.[0])}
-                </div>
-                <div className="provider-card-body">
-                  <div className="provider-card-name">{p.users?.display_name || 'Provider'}</div>
-                  {p.location && (
-                    <div className="provider-card-location">📍 {p.location}</div>
-                  )}
-                  <div className="provider-card-tags">
-                    {(p.tags || []).slice(0, 3).map(t => (
-                      <span
-                        key={t}
-                        className={`tag${activeTags.has(t) ? '' : ''}`}
-                        style={activeTags.has(t) ? { background: 'var(--accent)', color: 'white' } : {}}
-                      >
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="rating">
-                    <Stars value={p.avg_rating} />
-                    <span style={{ marginLeft: 5, color: '#888', fontSize: '0.78rem' }}>
-                      {p.avg_rating ? Number(p.avg_rating).toFixed(1) : 'New'}
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            )
-          })}
+      </aside>
+
+      <div className="main-content-main">
+        <div className="banner">
+          <h2 className="banner-title">Discover campus services</h2>
+          <p className="banner-desc">Find students offering delivery, tutoring, cleaning, and more near you.</p>
         </div>
-      )}
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 className="page-title" style={{ marginBottom: 0 }}>
+            {query ? `Results for "${query}"` : 'Popular providers'}
+          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Sort</span>
+            <select
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value)}
+              className="sort-select"
+            >
+              <option value="rating">Top rated</option>
+              <option value="newest">Newest</option>
+            </select>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="loading-wrap"><div className="spinner" /></div>
+        ) : filtered.length === 0 ? (
+          <div className="empty-state">
+            <h3>No providers found</h3>
+            <p>
+              {query || activeTags.size > 0 ? 'Try different filters or search.' : 'Be the first to offer a service!'}
+            </p>
+          </div>
+        ) : (
+          <div className="provider-grid">
+            {filtered.map(p => {
+              const img = cardImage(p)
+              const desc = p.bio ? p.bio.slice(0, 60) + (p.bio.length > 60 ? '…' : '') : (p.tags || []).slice(0, 2).join(', ')
+              return (
+                <Link key={p.id} to={`/provider/${p.id}`} className="provider-card">
+                  <div className="provider-card-img" style={img ? { backgroundImage: `url(${img})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}>
+                    {!img && tagEmoji(p.tags?.[0])}
+                  </div>
+                  <div className="provider-card-body">
+                    <div className="provider-card-name">{p.users?.display_name || 'Provider'}</div>
+                    {desc && <div className="provider-card-desc">{desc}</div>}
+                    <div className="rating" style={{ marginTop: 8 }}>
+                      <Stars value={p.avg_rating} />
+                      <span style={{ marginLeft: 4, color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                        {p.avg_rating ? Number(p.avg_rating).toFixed(1) : 'New'}
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

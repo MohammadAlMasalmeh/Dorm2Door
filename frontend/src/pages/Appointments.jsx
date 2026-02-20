@@ -26,6 +26,7 @@ function ReviewModal({ appt, onClose, onSubmit }) {
     const { error } = await supabase.from('reviews').insert({
       appointment_id: appt.id,
       provider_id:    appt.providers?.id,
+      consumer_id:    appt.consumer_id,
       rating,
       comment,
     })
@@ -85,7 +86,7 @@ export default function Appointments({ session, userProfile }) {
     const [{ data: b }, { data: i }] = await Promise.all([
       supabase
         .from('appointments')
-        .select('id, status, scheduled_at, providers (id, users (display_name)), services (name, price), reviews (id)')
+        .select('id, consumer_id, status, scheduled_at, providers (id, users (display_name)), services (name, price), reviews (id)')
         .eq('consumer_id', session.user.id)
         .order('scheduled_at', { ascending: false }),
       isProvider
@@ -178,6 +179,11 @@ export default function Appointments({ session, userProfile }) {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, flexShrink: 0 }}>
               <span className={`status-badge status-${appt.status}`}>{appt.status}</span>
 
+              {tab === 'consumer' && (appt.status === 'pending' || appt.status === 'confirmed') && (
+                <button className="btn btn-sm btn-outline btn-danger-outline" onClick={() => updateStatus(appt.id, 'cancelled')}>
+                  Cancel
+                </button>
+              )}
               {tab === 'consumer' && appt.status === 'completed' && !appt.reviews?.length && (
                 <button className="btn btn-sm btn-outline" onClick={() => setReviewAppt(appt)}>
                   Review
@@ -191,12 +197,16 @@ export default function Appointments({ session, userProfile }) {
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button className="btn btn-sm btn-primary" onClick={() => updateStatus(appt.id, 'confirmed')}>Confirm</button>
                   <button className="btn btn-sm btn-outline" onClick={() => updateStatus(appt.id, 'completed')}>Complete</button>
+                  <button className="btn btn-sm btn-danger-outline" onClick={() => updateStatus(appt.id, 'cancelled')}>Decline</button>
                 </div>
               )}
               {tab === 'provider' && appt.status === 'confirmed' && (
-                <button className="btn btn-sm btn-outline" onClick={() => updateStatus(appt.id, 'completed')}>
-                  Mark complete
-                </button>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn btn-sm btn-outline" onClick={() => updateStatus(appt.id, 'completed')}>
+                    Mark complete
+                  </button>
+                  <button className="btn btn-sm btn-danger-outline" onClick={() => updateStatus(appt.id, 'cancelled')}>Cancel</button>
+                </div>
               )}
             </div>
           </div>

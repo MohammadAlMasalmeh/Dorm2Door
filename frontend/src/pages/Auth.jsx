@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 
 const STEPS = ['Sign in', 'Info', 'Interests', 'Friends']
@@ -43,25 +44,21 @@ export default function Auth() {
     // If data.session exists, onAuthStateChange in App.jsx handles the redirect.
   }
 
-  // ── Welcome ──────────────────────────────────────────────────────────────
+  // ── Welcome (mid-fi: logo centered) ───────────────────────────────────────
   if (mode === 'welcome') {
     return (
       <div className="auth-container">
-        <div className="auth-card" style={{ textAlign: 'center' }}>
-          <div style={{
-            width: 56, height: 56, borderRadius: '50%', background: 'var(--orange)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 18px', fontSize: '1.3rem', fontWeight: 700, color: 'white',
-          }}>D</div>
-          <h1 className="auth-title">Welcome!</h1>
-          <p className="auth-subtitle" style={{ marginBottom: 32 }}>
+        <div className="auth-card auth-card-centered">
+          <Link to="/" className="auth-logo">Dorm<span>2</span>Door</Link>
+          <h1 className="auth-title">Welcome</h1>
+          <p className="auth-subtitle" style={{ marginBottom: 24 }}>
             Your campus service marketplace
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="auth-actions">
             <button className="btn btn-primary btn-full" onClick={() => setMode('signup')}>
               Create account
             </button>
-            <button className="btn btn-outline-light btn-full" onClick={() => setMode('signin')}>
+            <button className="btn btn-outline btn-full" onClick={() => setMode('signin')}>
               Sign in
             </button>
           </div>
@@ -94,13 +91,14 @@ export default function Auth() {
     )
   }
 
-  // ── Sign in ───────────────────────────────────────────────────────────────
+  // ── Sign in (mid-fi: logo, Welcome back, form, social) ────────────────────
   if (mode === 'signin') {
     return (
       <div className="auth-container">
-        <div className="auth-card">
-          <h2 className="auth-title">Sign in</h2>
-          <p className="auth-subtitle">Welcome back</p>
+        <div className="auth-card auth-card-centered">
+          <Link to="/" className="auth-logo">Dorm<span>2</span>Door</Link>
+          <h2 className="auth-title">Welcome back</h2>
+          <p className="auth-subtitle">Sign in to your account</p>
 
           {error && <div className="alert alert-error">{error}</div>}
 
@@ -120,61 +118,60 @@ export default function Auth() {
             </button>
           </form>
 
+          <p className="auth-links">
+            <button type="button" className="auth-link-btn" onClick={() => setError('')}>Forgot password?</button>
+          </p>
           <div className="auth-switch">
-            No account?{' '}
-            <button onClick={() => reset('signup')}>Create one</button>
+            Don&apos;t have an account? <button type="button" onClick={() => reset('signup')}>Sign up</button>
+          </div>
+          <div className="auth-social">
+            <button type="button" className="btn btn-outline btn-full" disabled>Continue with Google</button>
+            <button type="button" className="btn btn-outline btn-full" disabled>Continue with Apple</button>
           </div>
         </div>
       </div>
     )
   }
 
-  // ── Sign up — step 0: credentials ────────────────────────────────────────
+  // ── Sign up — step 0 (mid-fi: Create account, form, terms, social) ─────────
   if (mode === 'signup' && step === 0) {
     return (
       <div className="auth-container">
-        <div className="auth-card">
-          <div className="onboarding-steps">
-            {STEPS.map((s, i) => (
-              <div key={s} className={`step-item${i === 0 ? ' active' : ''}`}>
-                <div className="step-dot" />{s}
-              </div>
-            ))}
-          </div>
-
+        <div className="auth-card auth-card-centered">
+          <Link to="/" className="auth-logo">Dorm<span>2</span>Door</Link>
           <h2 className="auth-title">Create account</h2>
           <p className="auth-subtitle">Use your .edu email to join</p>
 
           {error && <div className="alert alert-error">{error}</div>}
 
-          <div className="form-group">
-            <label className="form-label">Full name</label>
-            <input className="form-input" type="text" placeholder="Alex Johnson"
-              value={displayName} onChange={e => setDisplayName(e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Email</label>
-            <input className="form-input" type="email" placeholder="you@university.edu"
-              value={email} onChange={e => setEmail(e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Password</label>
-            <input className="form-input" type="password" placeholder="At least 8 characters"
-              value={password} onChange={e => setPassword(e.target.value)} minLength={8} />
-          </div>
-
-          <button className="btn btn-primary btn-full" onClick={() => {
-            if (!email.endsWith('.edu')) { setError('Only .edu emails allowed.'); return }
-            if (!displayName.trim())    { setError('Please enter your name.'); return }
-            if (password.length < 8)   { setError('Password must be at least 8 characters.'); return }
-            setError(''); setStep(1)
-          }}>
-            Continue
-          </button>
+          <form onSubmit={e => { e.preventDefault(); setError(''); if (!email.endsWith('.edu')) { setError('Only .edu emails allowed.'); return } if (!displayName.trim()) { setError('Please enter your name.'); return } if (password.length < 8) { setError('Password must be at least 8 characters.'); return } setStep(1); }}>
+            <div className="form-group">
+              <label className="form-label">Full name</label>
+              <input className="form-input" type="text" placeholder="Alex Johnson"
+                value={displayName} onChange={e => setDisplayName(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Email</label>
+              <input className="form-input" type="email" placeholder="you@university.edu"
+                value={email} onChange={e => setEmail(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Password</label>
+              <input className="form-input" type="password" placeholder="At least 8 characters"
+                value={password} onChange={e => setPassword(e.target.value)} minLength={8} />
+            </div>
+            <p className="auth-terms">By signing up you agree to our Terms of Service and Privacy Policy.</p>
+            <button type="submit" className="btn btn-primary btn-full">
+              Sign up
+            </button>
+          </form>
 
           <div className="auth-switch">
-            Already have an account?{' '}
-            <button onClick={() => reset('signin')}>Sign in</button>
+            Already have an account? <button type="button" onClick={() => reset('signin')}>Sign in</button>
+          </div>
+          <div className="auth-social">
+            <button type="button" className="btn btn-outline btn-full" disabled>Continue with Google</button>
+            <button type="button" className="btn btn-outline btn-full" disabled>Continue with Apple</button>
           </div>
         </div>
       </div>
