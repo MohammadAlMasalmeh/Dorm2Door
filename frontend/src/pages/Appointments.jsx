@@ -2,31 +2,19 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 
-const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-
-function DateBlock({ iso }) {
-  const d = new Date(iso)
-  return (
-    <div className="appt-date-block">
-      <div className="month">{MONTHS_SHORT[d.getMonth()]}</div>
-      <div className="day">{d.getDate()}</div>
-    </div>
-  )
-}
-
 function ReviewModal({ appt, onClose, onSubmit }) {
-  const [rating, setRating]   = useState(5)
+  const [rating, setRating] = useState(5)
   const [comment, setComment] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState('')
+  const [error, setError] = useState('')
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError(''); setLoading(true)
     const { error } = await supabase.from('reviews').insert({
       appointment_id: appt.id,
-      provider_id:    appt.providers?.id,
-      consumer_id:    appt.consumer_id,
+      provider_id: appt.providers?.id,
+      consumer_id: appt.consumer_id,
       rating,
       comment,
     })
@@ -54,7 +42,7 @@ function ReviewModal({ appt, onClose, onSubmit }) {
             </div>
           </div>
           <div className="form-group">
-            <label className="form-label">Comment <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span></label>
+            <label className="form-label">Comment (optional)</label>
             <textarea className="form-input" rows={3} placeholder="How was the experience?"
               value={comment} onChange={e => setComment(e.target.value)} />
           </div>
@@ -70,11 +58,62 @@ function ReviewModal({ appt, onClose, onSubmit }) {
   )
 }
 
+function ApptCard({ appt, variant, onCancel, onAccept, onDecline, onReview, onComplete }) {
+  const d = new Date(appt.scheduled_at)
+  const dateStr = d.toLocaleString([], { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  const providerName = appt.providers?.users?.display_name || appt.users?.display_name || '—'
+  const serviceName = appt.services?.name || '—'
+  const price = appt.services?.price != null ? `$${Number(appt.services.price).toFixed(0)}` : ''
+
+  return (
+    <div className="bookings-card">
+      <div className="bookings-card-top">
+        <div className="bookings-card-row">
+          <span className="bookings-card-service">{serviceName}</span>
+          {price && <span className="bookings-card-price">{price}</span>}
+        </div>
+        <div className="bookings-card-meta">
+          <span className="bookings-card-avatar-wrap" />
+          <span className="bookings-card-meta-text">{providerName}</span>
+        </div>
+        <div className="bookings-card-meta">
+          <span className="bookings-card-icon bookings-card-icon-clock" aria-hidden>🕐</span>
+          <span className="bookings-card-meta-text">{dateStr}</span>
+        </div>
+        <div className="bookings-card-meta">
+          <span className="bookings-card-icon bookings-card-icon-pin" aria-hidden>📍</span>
+          <span className="bookings-card-meta-text">Location TBD</span>
+        </div>
+      </div>
+      <div className="bookings-card-actions">
+        {variant === 'upcoming' && (appt.status === 'pending' || appt.status === 'confirmed') && (
+          <button type="button" className="bookings-card-btn bookings-card-btn-outline" onClick={() => onCancel(appt.id)}>
+            Cancel Appointment
+          </button>
+        )}
+        {variant === 'upcoming' && appt.status === 'completed' && !appt.reviews?.length && onReview && (
+          <button type="button" className="bookings-card-btn bookings-card-btn-outline" onClick={() => onReview(appt)}>
+            Leave Review
+          </button>
+        )}
+        {variant === 'pending' && appt.status === 'pending' && (
+          <>
+            <button type="button" className="bookings-card-btn bookings-card-btn-accept" onClick={() => onAccept(appt.id)}>Accept</button>
+            <button type="button" className="bookings-card-btn bookings-card-btn-outline" onClick={() => onDecline(appt.id)}>Decline</button>
+          </>
+        )}
+        {variant === 'pending' && appt.status === 'confirmed' && onComplete && (
+          <button type="button" className="bookings-card-btn bookings-card-btn-outline" onClick={() => onComplete(appt.id)}>Mark complete</button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function Appointments({ session, userProfile }) {
-  const [tab, setTab]           = useState('consumer')
   const [bookings, setBookings] = useState([])
   const [incoming, setIncoming] = useState([])
-  const [loading, setLoading]   = useState(true)
+  const [loading, setLoading] = useState(true)
   const [reviewAppt, setReviewAppt] = useState(null)
 
   const isProvider = userProfile?.role === 'provider'
@@ -107,111 +146,117 @@ export default function Appointments({ session, userProfile }) {
     fetchAll()
   }
 
+  const upcoming = bookings.filter(a => a.status !== 'cancelled')
+  const pending = incoming.filter(a => a.status === 'pending')
+  const confirmedIncoming = incoming.filter(a => a.status === 'confirmed')
+
   if (loading) return <div className="loading-wrap"><div className="spinner" /></div>
 
-  const list = tab === 'consumer' ? bookings : incoming
-
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">Appointments</h1>
-        <p className="page-subtitle">
-          {tab === 'consumer'
-            ? `${bookings.length} booking${bookings.length !== 1 ? 's' : ''}`
-            : `${incoming.length} incoming request${incoming.length !== 1 ? 's' : ''}`}
-        </p>
-      </div>
+    <div className="bookings-page">
+      <aside className="bookings-sidebar">
+        <h2 className="bookings-sidebar-title">Marketplace</h2>
+        <nav className="bookings-sidebar-nav">
+          <Link to="/my-services" className="bookings-sidebar-item">
+            <span className="bookings-sidebar-icon">+</span>
+            Add Service
+          </Link>
+          <Link to="/profile" className="bookings-sidebar-item">
+            <span className="bookings-sidebar-icon">⌂</span>
+            Overview
+          </Link>
+          <Link to="/my-services" className="bookings-sidebar-item">
+            <span className="bookings-sidebar-icon">🛒</span>
+            Services
+          </Link>
+          <div className="bookings-sidebar-item bookings-sidebar-item-disabled">
+            <span className="bookings-sidebar-icon">📈</span>
+            Stats
+          </div>
+          <div className="bookings-sidebar-item bookings-sidebar-item-disabled">
+            <span className="bookings-sidebar-icon">📅</span>
+            Availability
+          </div>
+        </nav>
+      </aside>
 
-      {isProvider && (
-        <div className="tabs">
-          <button className={`tab-btn${tab === 'consumer' ? ' active' : ''}`} onClick={() => setTab('consumer')}>
-            My Bookings
-          </button>
-          <button className={`tab-btn${tab === 'provider' ? ' active' : ''}`} onClick={() => setTab('provider')}>
-            Incoming
-          </button>
-        </div>
-      )}
+      <div className="bookings-main">
+        <h1 className="bookings-page-title">Appointments</h1>
 
-      {list.length === 0 ? (
-        <div className="empty-state">
-          <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>📅</div>
-          <h3>{tab === 'consumer' ? 'No bookings yet' : 'No incoming requests'}</h3>
-          <p style={{ marginTop: 6 }}>
-            {tab === 'consumer'
-              ? <Link to="/" style={{ color: 'var(--orange)', fontWeight: 600 }}>Browse providers →</Link>
-              : "When consumers book your services, they'll appear here."}
-          </p>
-        </div>
-      ) : (
-        list.map(appt => (
-          <div key={appt.id} className="appointment-card">
-            <DateBlock iso={appt.scheduled_at} />
-
-            <div className="appt-info">
-              {tab === 'consumer' ? (
-                <>
-                  <div className="appt-provider">
-                    <Link to={`/provider/${appt.providers?.id}`}
-                      style={{ color: 'inherit', textDecoration: 'none' }}>
-                      {appt.providers?.users?.display_name}
-                    </Link>
-                  </div>
-                  <div className="appt-service">
-                    {appt.services?.name}
-                    {appt.services?.price && ` · $${Number(appt.services.price).toFixed(2)}`}
-                  </div>
-                </>
+        <div className="bookings-columns">
+          <section className="bookings-col">
+            <h3 className="bookings-col-title">Upcoming</h3>
+            <div className="bookings-cards">
+              {upcoming.length === 0 ? (
+                <p className="bookings-empty">No upcoming appointments.</p>
               ) : (
-                <>
-                  <div className="appt-provider">{appt.users?.display_name || 'Consumer'}</div>
-                  <div className="appt-service">
-                    {appt.services?.name}
-                    {appt.services?.price && ` · $${Number(appt.services.price).toFixed(2)}`}
-                  </div>
-                </>
+                upcoming.map(appt => (
+                  <ApptCard
+                    key={appt.id}
+                    appt={appt}
+                    variant="upcoming"
+                    onCancel={(id) => updateStatus(id, 'cancelled')}
+                    onReview={setReviewAppt}
+                  />
+                ))
               )}
-              <div className="appt-time">
-                {new Date(appt.scheduled_at).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}
+            </div>
+          </section>
+          {isProvider && (
+            <section className="bookings-col">
+              <h3 className="bookings-col-title">Pending</h3>
+              <div className="bookings-cards">
+                {pending.length === 0 ? (
+                  <p className="bookings-empty">No pending requests.</p>
+                ) : (
+                  pending.map(appt => (
+                    <ApptCard
+                      key={appt.id}
+                      appt={appt}
+                      variant="pending"
+                      onAccept={(id) => updateStatus(id, 'confirmed')}
+                      onDecline={(id) => updateStatus(id, 'cancelled')}
+                      onComplete={(id) => updateStatus(id, 'completed')}
+                    />
+                  ))
+                )}
+              </div>
+            </section>
+          )}
+        </div>
+
+        {isProvider && (
+          <>
+            <h2 className="bookings-section-title">Weekly Stats</h2>
+            <div className="bookings-stats">
+              <div className="bookings-stat-card">
+                <span className="bookings-stat-label">Services Provided</span>
+                <span className="bookings-stat-value">{confirmedIncoming.length + incoming.filter(a => a.status === 'completed').length}</span>
+                <span className="bookings-stat-period">This week</span>
+              </div>
+              <div className="bookings-stat-card">
+                <span className="bookings-stat-label">Revenue</span>
+                <span className="bookings-stat-value">
+                  ${incoming
+                    .filter(a => a.status === 'completed')
+                    .reduce((sum, a) => sum + Number(a.services?.price || 0), 0)
+                    .toFixed(0)}
+                </span>
+                <span className="bookings-stat-period">This week</span>
+              </div>
+              <div className="bookings-stat-card">
+                <span className="bookings-stat-label">Bookings</span>
+                <span className="bookings-stat-value">{incoming.length}</span>
+                <span className="bookings-stat-period">Total</span>
               </div>
             </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, flexShrink: 0 }}>
-              <span className={`status-badge status-${appt.status}`}>{appt.status}</span>
-
-              {tab === 'consumer' && (appt.status === 'pending' || appt.status === 'confirmed') && (
-                <button className="btn btn-sm btn-outline btn-danger-outline" onClick={() => updateStatus(appt.id, 'cancelled')}>
-                  Cancel
-                </button>
-              )}
-              {tab === 'consumer' && appt.status === 'completed' && !appt.reviews?.length && (
-                <button className="btn btn-sm btn-outline" onClick={() => setReviewAppt(appt)}>
-                  Review
-                </button>
-              )}
-              {tab === 'consumer' && appt.reviews?.length > 0 && (
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>✓ Reviewed</span>
-              )}
-
-              {tab === 'provider' && appt.status === 'pending' && (
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn btn-sm btn-primary" onClick={() => updateStatus(appt.id, 'confirmed')}>Confirm</button>
-                  <button className="btn btn-sm btn-outline" onClick={() => updateStatus(appt.id, 'completed')}>Complete</button>
-                  <button className="btn btn-sm btn-danger-outline" onClick={() => updateStatus(appt.id, 'cancelled')}>Decline</button>
-                </div>
-              )}
-              {tab === 'provider' && appt.status === 'confirmed' && (
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn btn-sm btn-outline" onClick={() => updateStatus(appt.id, 'completed')}>
-                    Mark complete
-                  </button>
-                  <button className="btn btn-sm btn-danger-outline" onClick={() => updateStatus(appt.id, 'cancelled')}>Cancel</button>
-                </div>
-              )}
-            </div>
-          </div>
-        ))
-      )}
+            <h2 className="bookings-section-title">Your Services</h2>
+            <p className="bookings-empty" style={{ marginBottom: 24 }}>
+              <Link to="/my-services" className="btn btn-primary">Manage services</Link>
+            </p>
+          </>
+        )}
+      </div>
 
       {reviewAppt && (
         <ReviewModal

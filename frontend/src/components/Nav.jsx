@@ -34,7 +34,10 @@ export default function Nav({ session, userProfile }) {
   return (
     <nav className="nav nav-landing">
       <div className="nav-left">
-        <Link to="/" className="nav-logo-badge">
+        <Link to="/" className="nav-logo-wrap">
+          <span className="nav-logo-tape" aria-hidden>
+            <img src="/logo-tape.png" alt="" />
+          </span>
           <span className="nav-logo-text">DORM2Door</span>
         </Link>
         <span className="nav-location">Austin, TX</span>

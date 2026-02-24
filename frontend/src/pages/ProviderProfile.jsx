@@ -1,20 +1,24 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 
-function Stars({ value, size = '0.95rem' }) {
+function Stars({ value, size = '1rem' }) {
   const n = Math.round(value || 0)
-  return <span style={{ color: '#f0a500', fontSize: size }}>{'★'.repeat(n)}{'☆'.repeat(5 - n)}</span>
+  return <span className="listing-stars" style={{ fontSize: size }}>{'★'.repeat(n)}{'☆'.repeat(5 - n)}</span>
 }
 
 export default function ProviderProfile({ session }) {
   const { id } = useParams()
+  const navigate = useNavigate()
   const [provider, setProvider] = useState(null)
-  const [reviews, setReviews]   = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [lightbox, setLightbox] = useState(null) // image URL for full-screen view
+  const [reviews, setReviews] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [selectedImage, setSelectedImage] = useState(0)
 
-  useEffect(() => { fetchProvider(); fetchReviews() }, [id])
+  useEffect(() => {
+    fetchProvider()
+    fetchReviews()
+  }, [id])
 
   async function fetchProvider() {
     const { data } = await supabase
@@ -38,168 +42,150 @@ export default function ProviderProfile({ session }) {
   if (loading) return <div className="loading-wrap"><div className="spinner" /></div>
   if (!provider) return <div className="empty-state"><h3>Provider not found</h3></div>
 
-  const name     = provider.users?.display_name || 'Provider'
+  const name = provider.users?.display_name || 'Provider'
   const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
   const services = provider.services || []
-  const isOwn    = session?.user?.id === id
-
-  // Services with images go to portfolio grid; all services also show in the list
-  const portfolioImages = services.filter(s => s.image_url)
+  const isOwn = session?.user?.id === id
+  const firstService = services[0]
+  const portfolioImages = services.filter(s => s.image_url).map(s => s.image_url)
+  const mainImage = portfolioImages[selectedImage] || portfolioImages[0]
+  const reviewCount = reviews.length
+  const avgRating = provider.avg_rating ? Number(provider.avg_rating).toFixed(1) : null
 
   return (
-    <div>
-      <Link to="/" className="back-btn">← Browse</Link>
-
-      {/* Profile header */}
-      <div className="profile-header">
-        {provider.users?.avatar_url ? (
-          <img src={provider.users.avatar_url} alt="" className="profile-avatar profile-avatar-img" />
-        ) : (
-          <div className="profile-avatar">{initials}</div>
-        )}
-        <div style={{ flex: 1 }}>
-          <div className="profile-name">{name}</div>
-          {provider.location && (
-            <div className="profile-location">📍 {provider.location}</div>
+    <div className="listing-page">
+      {/* Left: gallery */}
+      <div className="listing-gallery">
+        <Link to="/" className="listing-back" aria-label="Back">
+          ‹
+        </Link>
+        <div
+          className="listing-gallery-main"
+          style={mainImage ? { backgroundImage: `url(${mainImage})` } : {}}
+        >
+          {!mainImage && (
+            <div className="listing-gallery-placeholder">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <path d="m21 15-5-5L5 21" />
+              </svg>
+            </div>
           )}
-          <div className="rating" style={{ marginBottom: 10 }}>
-            <Stars value={provider.avg_rating} />
-            <span style={{ marginLeft: 6, color: '#888', fontSize: '0.8rem' }}>
-              {provider.avg_rating ? Number(provider.avg_rating).toFixed(1) : 'No ratings yet'}
-              {reviews.length > 0 && ` · ${reviews.length} review${reviews.length !== 1 ? 's' : ''}`}
-            </span>
-          </div>
-          {provider.bio && <p className="profile-bio">{provider.bio}</p>}
-          <div className="provider-card-tags" style={{ marginTop: 10 }}>
-            {(provider.tags || []).map(t => <span key={t} className="tag">{t}</span>)}
-          </div>
+        </div>
+        <div className="listing-gallery-thumbs">
+          {[0, 1, 2].map(i => (
+            <button
+              key={i}
+              type="button"
+              className={`listing-gallery-thumb${selectedImage === i ? ' active' : ''}`}
+              onClick={() => setSelectedImage(i)}
+              style={portfolioImages[i] ? { backgroundImage: `url(${portfolioImages[i]})` } : {}}
+            >
+              {!portfolioImages[i] && <span />}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Portfolio image grid */}
-      {portfolioImages.length > 0 && (
-        <div style={{ marginBottom: 28 }}>
-          <p className="section-title">Portfolio</p>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: portfolioImages.length === 1 ? '1fr' : 'repeat(auto-fill, minmax(200px, 1fr))',
-            gap: 10,
-          }}>
-            {portfolioImages.map(svc => (
-              <div
-                key={svc.id}
-                onClick={() => setLightbox(svc.image_url)}
-                style={{
-                  borderRadius: 10, overflow: 'hidden', cursor: 'zoom-in',
-                  aspectRatio: '4/3', position: 'relative',
-                }}
-              >
-                <img
-                  src={svc.image_url}
-                  alt={svc.name}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                />
-                <div style={{
-                  position: 'absolute', bottom: 0, left: 0, right: 0,
-                  background: 'linear-gradient(transparent, rgba(0,0,0,0.55))',
-                  padding: '24px 10px 8px',
-                }}>
-                  <div style={{ color: 'white', fontWeight: 600, fontSize: '0.82rem' }}>{svc.name}</div>
-                  <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.75rem' }}>
-                    ${Number(svc.price).toFixed(2)}
+      {/* Right: content */}
+      <div className="listing-content">
+        <div className="listing-header-actions">
+          <button type="button" className="listing-icon-btn" aria-label="Share">⎘</button>
+          <button type="button" className="listing-icon-btn" aria-label="Save">♡</button>
+        </div>
+        <h1 className="listing-title">
+          {firstService?.name || name}
+        </h1>
+        <div className="listing-tags">
+          <span className="listing-tag">Responds Fast</span>
+          <span className="listing-tag">Responds Fast</span>
+          <span className="listing-tag">Responds Fast</span>
+        </div>
+
+        <div className="listing-provider-row">
+          {provider.users?.avatar_url ? (
+            <img src={provider.users.avatar_url} alt="" className="listing-provider-avatar" />
+          ) : (
+            <span className="listing-provider-avatar listing-provider-avatar-initials">{initials}</span>
+          )}
+          <span className="listing-provider-name">{name}</span>
+          {(provider.tags && provider.tags.length > 0) && (
+            <span className="listing-provider-meta">{(provider.tags || []).slice(0, 2).join(' · ')}</span>
+          )}
+          <span className="listing-provider-location">
+            {provider.location ? `${provider.location} · ` : ''}~30min
+          </span>
+        </div>
+
+        {provider.bio && (
+          <>
+            <h2 className="listing-heading">Overview</h2>
+            <p className="listing-overview">{provider.bio}</p>
+          </>
+        )}
+
+        <div className="listing-divider" />
+
+        <h2 className="listing-heading">Services</h2>
+        <div className="listing-services">
+          {services.length === 0 ? (
+            <p className="listing-empty">No services listed yet.</p>
+          ) : (
+            services.map(svc => (
+              <div key={svc.id} className="listing-service-row">
+                <span className="listing-service-name">{svc.name}</span>
+                <div className="listing-service-right">
+                  <div className="listing-service-price-block">
+                    <span className="listing-service-price">${Number(svc.price).toFixed(0)}+</span>
+                    <span className="listing-service-duration">{svc.duration_minutes ? `${svc.duration_minutes} min` : '—'}</span>
                   </div>
+                  {!isOwn && session && (
+                    <Link to={`/book/${id}/${svc.id}`} className="listing-service-select">Select</Link>
+                  )}
                 </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="listing-divider" />
+
+        <h2 className="listing-heading">Reviews</h2>
+        <div className="listing-reviews-summary">
+          <div className="listing-reviews-score">
+            <span className="listing-reviews-number">{avgRating || '—'}</span>
+            <Stars value={provider.avg_rating} size="1.25rem" />
+            <span className="listing-reviews-count">{reviewCount} Reviews</span>
+          </div>
+        </div>
+        {reviews.length > 0 && (
+          <div className="listing-reviews-list">
+            {reviews.slice(0, 3).map((r, i) => (
+              <div key={i} className="listing-review-card">
+                <div className="listing-review-header">
+                  {r.users?.avatar_url ? (
+                    <img src={r.users.avatar_url} alt="" className="listing-review-avatar" />
+                  ) : (
+                    <span className="listing-review-avatar listing-review-avatar-initials">
+                      {(r.users?.display_name || '?')[0]}
+                    </span>
+                  )}
+                  <span className="listing-review-name">{r.users?.display_name || 'Anonymous'}</span>
+                  <Stars value={r.rating} size="0.85rem" />
+                </div>
+                {r.comment && <p className="listing-review-comment">{r.comment}</p>}
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Services list */}
-      <p className="section-title">Services</p>
-      {services.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', color: '#888', fontSize: '0.875rem', padding: 28 }}>
-          No services listed yet.
-        </div>
-      ) : (
-        services.map(svc => (
-          <div key={svc.id} style={{
-            background: 'var(--card)', borderRadius: 'var(--radius)',
-            overflow: 'hidden', marginBottom: 10, boxShadow: 'var(--shadow)',
-          }}>
-            {svc.image_url && (
-              <div
-                onClick={() => setLightbox(svc.image_url)}
-                style={{
-                  height: 160, backgroundImage: `url(${svc.image_url})`,
-                  backgroundSize: 'cover', backgroundPosition: 'center', cursor: 'zoom-in',
-                }}
-              />
-            )}
-            <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ flex: 1 }}>
-                <div className="service-name">{svc.name}</div>
-                {svc.description && <div className="service-desc">{svc.description}</div>}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                <span className="service-price">${Number(svc.price).toFixed(2)}</span>
-                {!isOwn && session && (
-                  <Link to={`/book/${id}/${svc.id}`} className="btn btn-primary btn-sm">
-                    Book
-                  </Link>
-                )}
-              </div>
-            </div>
-          </div>
-        ))
-      )}
-
-      {/* Reviews */}
-      {reviews.length > 0 && (
-        <div style={{ marginTop: 28 }}>
-          <p className="section-title">Reviews ({reviews.length})</p>
-          {reviews.map((r, i) => (
-            <div key={i} className="review-card">
-              <div className="review-header">
-                <div className="review-reviewer">
-                  {r.users?.avatar_url ? (
-                    <img src={r.users.avatar_url} alt="" className="review-avatar" />
-                  ) : (
-                    <div className="review-avatar review-avatar-initials">
-                      {(r.users?.display_name || '?').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                    </div>
-                  )}
-                  <div>
-                    <span className="review-reviewer-name">{r.users?.display_name || 'Anonymous'}</span>
-                    <span className="review-meta">
-                      <Stars value={r.rating} size="0.9rem" /> · {new Date(r.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              {r.comment && <p className="review-comment">{r.comment}</p>}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Lightbox */}
-      {lightbox && (
-        <div
-          onClick={() => setLightbox(null)}
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 300, cursor: 'zoom-out', padding: 24,
-          }}
-        >
-          <img
-            src={lightbox}
-            alt="Portfolio"
-            style={{ maxWidth: '100%', maxHeight: '90vh', borderRadius: 10, objectFit: 'contain' }}
-          />
-        </div>
-      )}
+        {!isOwn && session && firstService && (
+          <Link to={`/book/${id}/${firstService.id}`} className="listing-book-cta">
+            BOOK
+          </Link>
+        )}
+      </div>
     </div>
   )
 }
