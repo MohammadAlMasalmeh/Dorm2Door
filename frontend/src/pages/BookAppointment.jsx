@@ -42,7 +42,6 @@ function Calendar({ value, onChange }) {
     return new Date(year, month, day).getTime() === today.getTime()
   }
 
-  // Disable navigating before current month
   const atMin = year === today.getFullYear() && month === today.getMonth()
 
   return (
@@ -59,9 +58,7 @@ function Calendar({ value, onChange }) {
         {DAY_LABELS.map(d => (
           <div key={d} className="cal-day-label">{d}</div>
         ))}
-        {/* offset for first day */}
         {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
-        {/* day cells */}
         {Array.from({ length: totalDays }).map((_, i) => {
           const day  = i + 1
           const past = isPast(day)
@@ -82,7 +79,6 @@ function Calendar({ value, onChange }) {
   )
 }
 
-// ── Time slots ───────────────────────────────────────────────────────────────
 const SLOTS = [
   '8:00 AM','9:00 AM','10:00 AM','11:00 AM',
   '12:00 PM','1:00 PM','2:00 PM','3:00 PM',
@@ -97,7 +93,6 @@ function to24(slot) {
   return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`
 }
 
-// ── Main page ────────────────────────────────────────────────────────────────
 export default function BookAppointment({ session }) {
   const { providerId, serviceId } = useParams()
   const navigate = useNavigate()
@@ -106,6 +101,7 @@ export default function BookAppointment({ session }) {
   const [provider, setProvider] = useState(null)
   const [date, setDate]         = useState('')
   const [slot, setSlot]         = useState('')
+  const [description, setDescription] = useState('')
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState('')
   const [done, setDone]         = useState(false)
@@ -113,7 +109,7 @@ export default function BookAppointment({ session }) {
   useEffect(() => {
     Promise.all([
       supabase.from('services').select('*').eq('id', serviceId).single(),
-      supabase.from('providers').select('*, users (display_name)').eq('id', providerId).single(),
+      supabase.from('providers').select('*, users (display_name, avatar_url)').eq('id', providerId).single(),
     ]).then(([{ data: svc }, { data: prov }]) => {
       setService(svc); setProvider(prov)
     })
@@ -141,124 +137,150 @@ export default function BookAppointment({ session }) {
 
   if (done) {
     return (
-      <div style={{ textAlign: 'center', padding: '80px 24px' }}>
-        <div style={{
-          width: 64, height: 64, borderRadius: '50%',
-          background: 'var(--orange-light)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 20px', fontSize: '1.8rem',
-        }}>✓</div>
-        <h2 style={{ fontWeight: 800, marginBottom: 8, letterSpacing: '-0.3px' }}>You're booked!</h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Heading to your appointments…</p>
+      <div className="booking-done">
+        <div className="booking-done-icon">✓</div>
+        <h2 className="booking-done-title">You're booked!</h2>
+        <p className="booking-done-desc">Heading to your appointments…</p>
       </div>
     )
   }
 
   const providerName = provider.users?.display_name || 'Provider'
+  const providerAvatar = provider.users?.avatar_url
+  const initials = (providerName || 'P').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
   const selectedDate = date ? new Date(date + 'T00:00:00') : null
+  const duration = service.duration_minutes ? `${service.duration_minutes} min` : '—'
 
   return (
-    <div>
-      <Link to={`/provider/${providerId}`} className="back-btn">← Back to profile</Link>
-
-      <div className="page-header">
-        <h1 className="page-title">Book an appointment</h1>
-        <p className="page-subtitle">{providerName} · {service.name}</p>
-      </div>
-
-      <div className="booking-layout">
-        {/* Left: date + time */}
-        <div>
-          {error && <div className="alert alert-error" style={{ marginBottom: 16 }}>{error}</div>}
-
-          <div style={{ marginBottom: 8 }}>
-            <p className="section-title">Select a date</p>
-            <Calendar value={date} onChange={setDate} />
-          </div>
-
-          {date && (
-            <div style={{ marginTop: 24 }}>
-              <p className="section-title">Select a time</p>
-              <div className="time-slots-wrap">
-                {SLOTS.map(s => (
-                  <button
-                    key={s}
-                    type="button"
-                    className={`time-slot-btn${slot === s ? ' active' : ''}`}
-                    onClick={() => setSlot(s)}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
+    <div className="booking-listing">
+      {/* Left: image gallery (Figma style) */}
+      <div className="booking-gallery">
+        <div
+          className="booking-gallery-main"
+          style={service.image_url ? { backgroundImage: `url(${service.image_url})` } : {}}
+        >
+          {!service.image_url && (
+            <div className="booking-gallery-placeholder">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <path d="m21 15-5-5L5 21" />
+              </svg>
             </div>
           )}
+        </div>
+        <div className="booking-gallery-thumbs">
+          <div className="booking-gallery-thumb booking-gallery-thumb-placeholder" />
+          <div className="booking-gallery-thumb booking-gallery-thumb-placeholder" />
+          <div className="booking-gallery-thumb booking-gallery-thumb-placeholder" />
+        </div>
+      </div>
 
-          {date && slot && (
-            <button
-              className="btn btn-primary"
-              style={{ marginTop: 28, padding: '13px 32px', fontSize: '0.95rem', borderRadius: 'var(--radius-lg)' }}
-              onClick={handleBook}
-              disabled={loading}
-            >
-              {loading ? 'Booking…' : 'Confirm booking'}
-            </button>
+      {/* Right: content */}
+      <div className="booking-content">
+        <Link to={`/provider/${providerId}`} className="back-btn booking-back-link">← Back to profile</Link>
+
+        <h1 className="booking-title">{service.name}</h1>
+
+        <div className="booking-tags">
+          <span className="booking-tag">Responds Fast</span>
+        </div>
+
+        <div className="booking-provider-row">
+          {providerAvatar ? (
+            <img src={providerAvatar} alt="" className="booking-provider-avatar" />
+          ) : (
+            <span className="booking-provider-avatar booking-provider-avatar-initials">{initials}</span>
+          )}
+          <div className="booking-provider-info">
+            <span className="booking-provider-name">{providerName}</span>
+            {(provider.tags && provider.tags.length > 0) && (
+              <span className="booking-provider-meta">{(provider.tags || []).slice(0, 2).join(' · ')}</span>
+            )}
+          </div>
+          {(provider.location || duration) && (
+            <span className="booking-provider-location">
+              {provider.location ? `${provider.location} · ` : ''}{duration}
+            </span>
           )}
         </div>
 
-        {/* Right: summary */}
-        <div className="booking-summary">
-          <div className="booking-summary-header">
-            <div style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', opacity: 0.75, marginBottom: 6 }}>
-              Booking summary
+        {service.description && (
+          <>
+            <h2 className="booking-heading">Overview</h2>
+            <p className="booking-overview">{service.description}</p>
+          </>
+        )}
+
+        <div className="booking-divider" />
+
+        <h2 className="booking-heading">Services</h2>
+        <div className="booking-service-row booking-service-row-selected">
+          <span className="booking-service-name">{service.name}</span>
+          <div className="booking-service-right">
+            <div className="booking-service-price-block">
+              <span className="booking-service-price">${Number(service.price).toFixed(0)}+</span>
+              <span className="booking-service-duration">{duration}</span>
             </div>
-            <div style={{ fontWeight: 800, fontSize: '1.05rem', marginBottom: 2 }}>{providerName}</div>
-            {provider.location && (
-              <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>📍 {provider.location}</div>
-            )}
+            <span className="booking-service-select">Select</span>
           </div>
+        </div>
 
-          <div className="booking-summary-body">
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', marginBottom: 4 }}>
-                Service
-              </div>
-              <div style={{ fontWeight: 700 }}>{service.name}</div>
-              {service.description && (
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 2 }}>{service.description}</div>
-              )}
+        <div className="booking-divider" />
+
+        <h2 className="booking-heading">Select a date</h2>
+        {error && <div className="alert alert-error booking-alert">{error}</div>}
+        <Calendar value={date} onChange={setDate} />
+
+        {date && (
+          <>
+            <h2 className="booking-heading booking-heading-spaced">Select a time</h2>
+            <div className="time-slots-wrap">
+              {SLOTS.map(s => (
+                <button
+                  key={s}
+                  type="button"
+                  className={`time-slot-btn${slot === s ? ' active' : ''}`}
+                  onClick={() => setSlot(s)}
+                >
+                  {s}
+                </button>
+              ))}
             </div>
+          </>
+        )}
 
-            <div className="divider" />
+        <div className="booking-description-wrap">
+          <label htmlFor="booking-desc" className="booking-description-label">Add a description (optional)</label>
+          <textarea
+            id="booking-desc"
+            className="booking-description-input"
+            placeholder="Add a description"
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            rows={3}
+          />
+        </div>
+        <button
+          type="button"
+          className="booking-cta booking-cta-book"
+          onClick={handleBook}
+          disabled={loading || !date || !slot}
+        >
+          {loading ? 'Booking…' : 'Book!'}
+        </button>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Price</span>
-              <span style={{ fontWeight: 800, fontSize: '1.2rem', color: 'var(--orange)' }}>
-                ${Number(service.price).toFixed(2)}
-              </span>
-            </div>
-
-            {selectedDate && (
-              <>
-                <div className="divider" />
-                <div style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', marginBottom: 8 }}>
-                  Appointment
-                </div>
-                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                  {selectedDate.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
-                </div>
-                {slot && (
-                  <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 2 }}>{slot}</div>
-                )}
-              </>
-            )}
-
-            {(!date || !slot) && (
-              <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                Select a date and time to continue
-              </div>
-            )}
+        <div className="booking-summary-inline">
+          <div className="booking-summary-inline-row">
+            <span>Price</span>
+            <span className="booking-summary-price">${Number(service.price).toFixed(2)}</span>
           </div>
+          {selectedDate && slot && (
+            <div className="booking-summary-inline-row">
+              <span>Appointment</span>
+              <span>{selectedDate.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })} · {slot}</span>
+            </div>
+          )}
         </div>
       </div>
     </div>
