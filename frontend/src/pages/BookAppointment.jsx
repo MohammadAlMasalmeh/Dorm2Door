@@ -160,24 +160,33 @@ export default function BookAppointment({ session }) {
 
   async function handleBook(e) {
     e.preventDefault()
-    if (!date || !slot) { setError('Please pick a date and time.'); return }
-    setError(''); setLoading(true)
+    if (!date || !slot) {
+      setError('Please pick a date and a time slot above.')
+      return
+    }
+    setError('')
+    setLoading(true)
 
-    const { error } = await supabase.from('appointments').insert({
-      consumer_id:  session.user.id,
-      provider_id:  providerId,
-      service_id:   serviceId,
-      status:       'pending',
-      scheduled_at: new Date(`${date}T${to24(slot)}:00`).toISOString(),
+    const scheduledAt = new Date(`${date}T${to24(slot)}:00`).toISOString()
+    const { data: result, error: err } = await supabase.rpc('ensure_consumer_then_book', {
+      p_provider_id: providerId,
+      p_service_id: serviceId,
+      p_scheduled_at: scheduledAt,
     })
 
-    if (error) {
-      if (error.message.includes('idx_no_double_booking') || error.message.includes('duplicate')) {
+    setLoading(false)
+    if (err) {
+      setError(err.message || 'Booking failed. Please try again.')
+      return
+    }
+    if (result && !result.ok) {
+      if (result.error === 'time_slot_taken') {
         setError('This time slot was just booked. Please choose another time.')
+      } else if (result.error === 'invalid_provider_or_service') {
+        setError('Invalid provider or service. Please go back and try again.')
       } else {
-        setError(error.message)
+        setError(result.error || 'Booking failed. Please try again.')
       }
-      setLoading(false)
       return
     }
     setDone(true)
@@ -287,7 +296,7 @@ export default function BookAppointment({ session }) {
         <div className="booking-divider" />
 
         <h2 className="booking-heading">Select a date</h2>
-        {error && <div className="alert alert-error booking-alert">{error}</div>}
+        {error && <div className="alert alert-error booking-alert" role="alert">{error}</div>}
         <Calendar value={date} onChange={d => { setDate(d); setSlot('') }} disabledDays={disabledDays} />
 
         {date && (
@@ -328,9 +337,13 @@ export default function BookAppointment({ session }) {
           className="booking-cta booking-cta-book"
           onClick={handleBook}
           disabled={loading || !date || !slot}
+          aria-disabled={loading || !date || !slot}
         >
-          {loading ? 'Booking...' : 'Book!'}
+          {loading ? 'Booking…' : 'Book'}
         </button>
+        {(!date || !slot) && (
+          <p className="booking-hint">Pick a date in the calendar, then choose an available time.</p>
+        )}
 
         <div className="booking-summary-inline">
           <div className="booking-summary-inline-row">

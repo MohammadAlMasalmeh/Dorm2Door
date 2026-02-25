@@ -19,6 +19,7 @@ function ReviewModal({ appt, onClose, onSubmit }) {
       comment,
     })
     if (error) { setError(error.message); setLoading(false); return }
+    setLoading(false)
     onSubmit()
   }
 
@@ -115,6 +116,7 @@ export default function Appointments({ session, userProfile }) {
   const [incoming, setIncoming] = useState([])
   const [loading, setLoading] = useState(true)
   const [reviewAppt, setReviewAppt] = useState(null)
+  const [actionError, setActionError] = useState('')
 
   const isProvider = userProfile?.role === 'provider'
 
@@ -142,7 +144,12 @@ export default function Appointments({ session, userProfile }) {
   }
 
   async function updateStatus(id, status) {
-    await supabase.from('appointments').update({ status }).eq('id', id)
+    setActionError('')
+    const { error } = await supabase.from('appointments').update({ status }).eq('id', id)
+    if (error) {
+      setActionError(error.message || 'Action failed. Please try again.')
+      return
+    }
     fetchAll()
   }
 
@@ -155,34 +162,32 @@ export default function Appointments({ session, userProfile }) {
   return (
     <div className="bookings-page">
       <aside className="bookings-sidebar">
-        <h2 className="bookings-sidebar-title">Marketplace</h2>
+        <h2 className="bookings-sidebar-title">Appointments</h2>
         <nav className="bookings-sidebar-nav">
-          <Link to="/my-services" className="bookings-sidebar-item">
-            <span className="bookings-sidebar-icon">+</span>
-            Add Service
+          <Link to="/" className="bookings-sidebar-item">
+            <span className="bookings-sidebar-icon">⌂</span>
+            Home
           </Link>
           <Link to="/profile" className="bookings-sidebar-item">
-            <span className="bookings-sidebar-icon">⌂</span>
-            Overview
+            <span className="bookings-sidebar-icon">👤</span>
+            Profile
           </Link>
-          <Link to="/my-services" className="bookings-sidebar-item">
-            <span className="bookings-sidebar-icon">🛒</span>
-            Services
-          </Link>
-          <div className="bookings-sidebar-item bookings-sidebar-item-disabled">
-            <span className="bookings-sidebar-icon">📈</span>
-            Stats
-          </div>
-          <Link to="/my-services" className="bookings-sidebar-item">
-            <span className="bookings-sidebar-icon">📅</span>
-            Availability
-          </Link>
+          {isProvider && (
+            <Link to="/my-services" className="bookings-sidebar-item">
+              <span className="bookings-sidebar-icon">🛠</span>
+              My Services
+            </Link>
+          )}
         </nav>
       </aside>
 
       <div className="bookings-main">
         <h1 className="bookings-page-title">Appointments</h1>
-
+        {actionError && (
+          <div className="alert alert-error" style={{ marginBottom: 16 }} role="alert">
+            {actionError}
+          </div>
+        )}
         <div className="bookings-columns">
           <section className="bookings-col">
             <h3 className="bookings-col-title">Upcoming</h3>

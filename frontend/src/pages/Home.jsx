@@ -198,7 +198,7 @@ export default function Home() {
               <option value="rating">Top rated</option>
               <option value="newest">Newest</option>
             </select>
-            <Link to="/" className="landing-section-more">See more</Link>
+            <Link to="/discover" className="landing-section-more">Discover on map</Link>
           </div>
         </div>
         {loading ? (

@@ -2220,6 +2220,12 @@ textarea.form-input {
   cursor: not-allowed;
 }
 .booking-cta-book { margin-top: 16px; }
+.booking-hint {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-top: 8px;
+  margin-bottom: 0;
+}
 .booking-description-wrap { margin-top: 20px; }
 .booking-description-label {
   display: block;
