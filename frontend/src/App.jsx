@@ -9,6 +9,7 @@ import Appointments from './pages/Appointments'
 import ProviderSetup from './pages/ProviderSetup'
 import Profile from './pages/Profile'
 import Messages from './pages/Messages'
+import Discover from './pages/Discover'
 import Nav from './components/Nav'
 
 export default function App() {
@@ -61,6 +62,7 @@ export default function App() {
           <Route path="/profile" element={<Profile session={session} userProfile={userProfile} onUpdate={() => fetchProfile(session.user.id)} />} />
           <Route path="/messages" element={<Messages session={session} />} />
           <Route path="/messages/:conversationId" element={<Messages session={session} />} />
+          <Route path="/discover" element={<Discover />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>

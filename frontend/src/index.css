@@ -1032,6 +1032,29 @@ body {
 /* ── Forms ──────────────────────────────────────────────── */
 .form-group { margin-bottom: 16px; }
 
+.provider-setup-map-wrap {
+  height: 220px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  margin-top: 8px;
+}
+.provider-setup-map { height: 100%; width: 100%; }
+.provider-setup-marker { background: none; border: none; }
+.provider-setup-marker-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  display: block;
+}
+
+/* react-select service area: menu is portaled with z-index in component styles */
+.service-area-select__control { font-size: 0.9375rem; }
+.service-area-select__menu-portal { z-index: 9999; }
+
 .form-label {
   display: block;
   font-size: 0.8rem;
@@ -2927,6 +2950,158 @@ textarea.form-input {
   border-radius: var(--radius);
   padding: 18px;
   margin-top: 12px;
+}
+
+/* ── Discover (map) page ─────────────────────────────────── */
+.discover-page {
+  padding: 0;
+  max-width: none;
+  height: calc(100vh - var(--nav-h, 60px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.discover-header {
+  padding: 16px 24px 0;
+  flex-shrink: 0;
+}
+.discover-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: var(--text-primary);
+}
+.discover-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+.discover-layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 260px 1fr 280px;
+  gap: 0;
+  min-height: 0;
+  padding: 16px 24px 24px;
+}
+.discover-filters {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  height: fit-content;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.discover-filter-group label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.discover-input {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+}
+.discover-price-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.discover-price-row .discover-input { flex: 1; }
+.discover-btn {
+  padding: 10px 14px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-family: inherit;
+  margin-top: 4px;
+}
+.discover-btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+}
+.discover-btn-primary:hover { filter: brightness(1.08); }
+.discover-map-wrap {
+  position: relative;
+  min-height: 320px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.discover-map {
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+}
+.discover-marker { background: none; border: none; }
+.discover-marker-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #2563eb;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  display: block;
+}
+.discover-marker-pin { font-size: 24px; display: block; }
+.discover-popup { font-size: 0.875rem; min-width: 160px; }
+.discover-popup strong { display: block; margin-bottom: 4px; }
+.discover-popup-link { color: var(--accent); margin-top: 6px; display: inline-block; }
+.discover-list {
+  overflow-y: auto;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.discover-list-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 12px;
+  color: var(--text-primary);
+}
+.discover-loading, .discover-empty {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+.discover-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.discover-card:hover, .discover-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(195, 91, 26, 0.15);
+}
+.discover-card-main { display: flex; flex-direction: column; gap: 2px; }
+.discover-card-name { font-weight: 600; font-size: 0.9375rem; }
+.discover-card-meta { font-size: 0.8125rem; color: var(--text-muted); }
+.discover-card-price { font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); }
+.discover-popup .stars, .discover-card .stars { color: var(--accent); }
+
+@media (max-width: 900px) {
+  .discover-layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; }
+  .discover-filters { flex-direction: row; flex-wrap: wrap; }
+  .discover-map-wrap { min-height: 280px; }
+  .discover-list { padding-left: 0; padding-top: 12px; max-height: 200px; }
 }
 
 /* ── Responsive ─────────────────────────────────────────── */
