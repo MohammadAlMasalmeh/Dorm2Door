@@ -44,6 +44,13 @@ function HeroIllustration({ side }) {
   )
 }
 
+function normalizeForSearch(text) {
+  return (text || '')
+    .toLowerCase()
+    .replace(/\s+/g, '')         // ignore spaces: "hair cut" vs "haircut"
+    .replace(/[^a-z0-9]/g, '')   // drop punctuation
+}
+
 export default function Home() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -73,11 +80,19 @@ export default function Home() {
 
   const filtered = useMemo(() => {
     if (!query) return providers
+    const normalizedQuery = normalizeForSearch(query)
     return providers.filter(p => {
-      const name = (p.users?.display_name || '').toLowerCase()
-      const tagStr = (p.tags || []).join(' ').toLowerCase()
-      const bio = (p.bio || '').toLowerCase()
-      return name.includes(query) || tagStr.includes(query) || bio.includes(query)
+      const name = p.users?.display_name || ''
+      const tags = (p.tags || []).join(' ')
+      const bio  = p.bio || ''
+
+      const combined = `${name} ${tags} ${bio}`.toLowerCase()
+      // Basic substring match first
+      if (combined.includes(query)) return true
+
+      // Fuzzy-ish: ignore spaces & punctuation so \"hair cut\" matches \"haircut\"
+      const normalizedCombined = normalizeForSearch(combined)
+      return normalizedCombined.includes(normalizedQuery)
     })
   }, [providers, query])
 

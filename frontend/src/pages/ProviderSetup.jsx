@@ -20,6 +20,9 @@ export default function ProviderSetup({ session, userProfile, onUpdate }) {
   const [loading, setLoading]       = useState(true)
   const [message, setMessage]       = useState('')
   const [error, setError]           = useState('')
+  const [availDays, setAvailDays]   = useState([1, 2, 3, 4, 5])
+  const [availStart, setAvailStart] = useState('9:00 AM')
+  const [availEnd, setAvailEnd]     = useState('6:00 PM')
   const fileInputRef = useRef()
 
   // Block consumers from this page
@@ -51,6 +54,11 @@ export default function ProviderSetup({ session, userProfile, onUpdate }) {
       setLocation(data.location || '')
       setTags(data.tags || [])
       setServices(data.services || [])
+      if (data.availability) {
+        setAvailDays(data.availability.days || [1, 2, 3, 4, 5])
+        setAvailStart(data.availability.startTime || '9:00 AM')
+        setAvailEnd(data.availability.endTime || '6:00 PM')
+      }
     }
     setLoading(false)
   }
@@ -63,7 +71,10 @@ export default function ProviderSetup({ session, userProfile, onUpdate }) {
       await supabase.from('users').update({ role: 'provider' }).eq('id', session.user.id)
     }
 
-    const payload = { bio, location, tags }
+    const payload = {
+      bio, location, tags,
+      availability: { days: availDays, startTime: availStart, endTime: availEnd },
+    }
     const { error } = profile
       ? await supabase.from('providers').update(payload).eq('id', session.user.id)
       : await supabase.from('providers').insert({ id: session.user.id, ...payload })
@@ -196,8 +207,37 @@ export default function ProviderSetup({ session, userProfile, onUpdate }) {
             </div>
           </div>
 
+          <div className="form-group">
+            <label className="form-label">Availability</label>
+            <div className="avail-days">
+              {['Su','Mo','Tu','We','Th','Fr','Sa'].map((name, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className={`avail-day-btn${availDays.includes(i) ? ' active' : ''}`}
+                  onClick={() => setAvailDays(prev =>
+                    prev.includes(i) ? prev.filter(d => d !== i) : [...prev, i].sort()
+                  )}
+                >{name}</button>
+              ))}
+            </div>
+            <div className="avail-time-row">
+              <select value={availStart} onChange={e => setAvailStart(e.target.value)} className="form-input avail-time-select">
+                {['6:00 AM','7:00 AM','8:00 AM','9:00 AM','10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM','6:00 PM','7:00 PM','8:00 PM','9:00 PM','10:00 PM'].map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <span className="avail-time-sep">to</span>
+              <select value={availEnd} onChange={e => setAvailEnd(e.target.value)} className="form-input avail-time-select">
+                {['6:00 AM','7:00 AM','8:00 AM','9:00 AM','10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM','6:00 PM','7:00 PM','8:00 PM','9:00 PM','10:00 PM'].map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           <button className="btn btn-primary btn-full" type="submit" disabled={saving}>
-            {saving ? 'Saving…' : profile ? 'Save changes' : 'Create provider profile'}
+            {saving ? 'Saving...' : profile ? 'Save changes' : 'Create provider profile'}
           </button>
         </form>
 

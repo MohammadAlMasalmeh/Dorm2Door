@@ -6,7 +6,7 @@ import { supabase } from '../supabaseClient'
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const DAY_LABELS = ['Su','Mo','Tu','We','Th','Fr','Sa']
 
-function Calendar({ value, onChange }) {
+function Calendar({ value, onChange, disabledDays = [] }) {
   const today = new Date(); today.setHours(0,0,0,0)
   const [view, setView] = useState(() => {
     const d = value ? new Date(value + 'T00:00:00') : new Date()
@@ -23,7 +23,7 @@ function Calendar({ value, onChange }) {
 
   function select(day) {
     const d = new Date(year, month, day)
-    if (d < today) return
+    if (d < today || disabledDays.includes(d.getDay())) return
     const iso = `${year}-${String(month + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
     onChange(iso)
   }
@@ -34,8 +34,9 @@ function Calendar({ value, onChange }) {
     return sy === year && sm - 1 === month && sd === day
   }
 
-  function isPast(day) {
-    return new Date(year, month, day) < today
+  function isDisabled(day) {
+    const d = new Date(year, month, day)
+    return d < today || disabledDays.includes(d.getDay())
   }
 
   function isToday(day) {
@@ -61,13 +62,13 @@ function Calendar({ value, onChange }) {
         {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
         {Array.from({ length: totalDays }).map((_, i) => {
           const day  = i + 1
-          const past = isPast(day)
+          const disabled = isDisabled(day)
           const sel  = isSelected(day)
           const tod  = isToday(day) && !sel
           return (
             <div
               key={day}
-              className={`cal-day${past ? ' cal-day-past' : ''}${sel ? ' cal-day-selected' : ''}${tod ? ' cal-day-today' : ''}`}
+              className={`cal-day${disabled ? ' cal-day-past' : ''}${sel ? ' cal-day-selected' : ''}${tod ? ' cal-day-today' : ''}`}
               onClick={() => select(day)}
             >
               {day}
@@ -79,7 +80,8 @@ function Calendar({ value, onChange }) {
   )
 }
 
-const SLOTS = [
+// Default fallback time slots
+const DEFAULT_SLOTS = [
   '8:00 AM','9:00 AM','10:00 AM','11:00 AM',
   '12:00 PM','1:00 PM','2:00 PM','3:00 PM',
   '4:00 PM','5:00 PM','6:00 PM','7:00 PM',
@@ -91,6 +93,28 @@ function to24(slot) {
   if (ampm === 'PM' && h !== 12) h += 12
   if (ampm === 'AM' && h === 12) h = 0
   return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`
+}
+
+function parseTime(timeStr) {
+  const [time, ampm] = timeStr.split(' ')
+  let [h] = time.split(':').map(Number)
+  if (ampm === 'PM' && h !== 12) h += 12
+  if (ampm === 'AM' && h === 12) h = 0
+  return h
+}
+
+function generateSlots(availability) {
+  if (!availability?.startTime || !availability?.endTime) return DEFAULT_SLOTS
+  const startH = parseTime(availability.startTime)
+  const endH = parseTime(availability.endTime)
+  if (startH >= endH) return DEFAULT_SLOTS
+  const slots = []
+  for (let h = startH; h < endH; h++) {
+    const ampm = h >= 12 ? 'PM' : 'AM'
+    const displayH = h > 12 ? h - 12 : (h === 0 ? 12 : h)
+    slots.push(`${displayH}:00 ${ampm}`)
+  }
+  return slots
 }
 
 export default function BookAppointment({ session }) {
@@ -105,6 +129,7 @@ export default function BookAppointment({ session }) {
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState('')
   const [done, setDone]         = useState(false)
+  const [takenSlots, setTakenSlots] = useState(new Set())
 
   useEffect(() => {
     Promise.all([
@@ -114,6 +139,24 @@ export default function BookAppointment({ session }) {
       setService(svc); setProvider(prov)
     })
   }, [serviceId, providerId])
+
+  // Fetch booked slots when date changes
+  useEffect(() => {
+    if (!date || !providerId) { setTakenSlots(new Set()); return }
+    supabase.rpc('get_booked_slots', {
+      p_provider_id: providerId,
+      p_date: date,
+    }).then(({ data }) => {
+      const taken = (data || []).map(row => {
+        const d = new Date(row.scheduled_at)
+        const h = d.getHours()
+        const ampm = h >= 12 ? 'PM' : 'AM'
+        const displayH = h > 12 ? h - 12 : (h === 0 ? 12 : h)
+        return `${displayH}:00 ${ampm}`
+      })
+      setTakenSlots(new Set(taken))
+    })
+  }, [date, providerId])
 
   async function handleBook(e) {
     e.preventDefault()
@@ -128,7 +171,15 @@ export default function BookAppointment({ session }) {
       scheduled_at: new Date(`${date}T${to24(slot)}:00`).toISOString(),
     })
 
-    if (error) { setError(error.message); setLoading(false); return }
+    if (error) {
+      if (error.message.includes('idx_no_double_booking') || error.message.includes('duplicate')) {
+        setError('This time slot was just booked. Please choose another time.')
+      } else {
+        setError(error.message)
+      }
+      setLoading(false)
+      return
+    }
     setDone(true)
     setTimeout(() => navigate('/appointments'), 2000)
   }
@@ -140,7 +191,7 @@ export default function BookAppointment({ session }) {
       <div className="booking-done">
         <div className="booking-done-icon">✓</div>
         <h2 className="booking-done-title">You're booked!</h2>
-        <p className="booking-done-desc">Heading to your appointments…</p>
+        <p className="booking-done-desc">Heading to your appointments...</p>
       </div>
     )
   }
@@ -151,9 +202,16 @@ export default function BookAppointment({ session }) {
   const selectedDate = date ? new Date(date + 'T00:00:00') : null
   const duration = service.duration_minutes ? `${service.duration_minutes} min` : '—'
 
+  // Dynamic availability
+  const availability = provider.availability
+  const availableDays = availability?.days ?? [0, 1, 2, 3, 4, 5, 6]
+  const allDays = [0, 1, 2, 3, 4, 5, 6]
+  const disabledDays = allDays.filter(d => !availableDays.includes(d))
+  const slots = generateSlots(availability)
+
   return (
     <div className="booking-listing">
-      {/* Left: image gallery (Figma style) */}
+      {/* Left: image gallery */}
       <div className="booking-gallery">
         <div
           className="booking-gallery-main"
@@ -230,22 +288,26 @@ export default function BookAppointment({ session }) {
 
         <h2 className="booking-heading">Select a date</h2>
         {error && <div className="alert alert-error booking-alert">{error}</div>}
-        <Calendar value={date} onChange={setDate} />
+        <Calendar value={date} onChange={d => { setDate(d); setSlot('') }} disabledDays={disabledDays} />
 
         {date && (
           <>
             <h2 className="booking-heading booking-heading-spaced">Select a time</h2>
             <div className="time-slots-wrap">
-              {SLOTS.map(s => (
-                <button
-                  key={s}
-                  type="button"
-                  className={`time-slot-btn${slot === s ? ' active' : ''}`}
-                  onClick={() => setSlot(s)}
-                >
-                  {s}
-                </button>
-              ))}
+              {slots.map(s => {
+                const isTaken = takenSlots.has(s)
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    className={`time-slot-btn${slot === s ? ' active' : ''}${isTaken ? ' time-slot-taken' : ''}`}
+                    onClick={() => !isTaken && setSlot(s)}
+                    disabled={isTaken}
+                  >
+                    {s}{isTaken ? ' (Booked)' : ''}
+                  </button>
+                )
+              })}
             </div>
           </>
         )}
@@ -267,7 +329,7 @@ export default function BookAppointment({ session }) {
           onClick={handleBook}
           disabled={loading || !date || !slot}
         >
-          {loading ? 'Booking…' : 'Book!'}
+          {loading ? 'Booking...' : 'Book!'}
         </button>
 
         <div className="booking-summary-inline">

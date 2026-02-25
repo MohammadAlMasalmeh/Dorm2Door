@@ -173,10 +173,10 @@ export default function Appointments({ session, userProfile }) {
             <span className="bookings-sidebar-icon">📈</span>
             Stats
           </div>
-          <div className="bookings-sidebar-item bookings-sidebar-item-disabled">
+          <Link to="/my-services" className="bookings-sidebar-item">
             <span className="bookings-sidebar-icon">📅</span>
             Availability
-          </div>
+          </Link>
         </nav>
       </aside>
 

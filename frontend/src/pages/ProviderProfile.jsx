@@ -14,11 +14,69 @@ export default function ProviderProfile({ session }) {
   const [reviews, setReviews] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedImage, setSelectedImage] = useState(0)
+  const [friendStatus, setFriendStatus] = useState('none') // none | pending_sent | pending_received | friends
+  const [friendActionLoading, setFriendActionLoading] = useState(false)
 
   useEffect(() => {
     fetchProvider()
     fetchReviews()
   }, [id])
+
+  // Check friendship status
+  useEffect(() => {
+    if (!session?.user?.id || session.user.id === id) return
+    checkFriendship()
+  }, [id, session?.user?.id])
+
+  async function checkFriendship() {
+    const uid = session.user.id
+    const [{ data: friend }, { data: request }] = await Promise.all([
+      supabase.from('friends').select('user_id').eq('user_id', uid).eq('friend_id', id).maybeSingle(),
+      supabase
+        .from('friend_requests')
+        .select('sender_id, status')
+        .or(`and(sender_id.eq.${uid},receiver_id.eq.${id}),and(sender_id.eq.${id},receiver_id.eq.${uid})`)
+        .eq('status', 'pending')
+        .maybeSingle(),
+    ])
+    if (friend) setFriendStatus('friends')
+    else if (request?.sender_id === uid) setFriendStatus('pending_sent')
+    else if (request) setFriendStatus('pending_received')
+    else setFriendStatus('none')
+  }
+
+  async function handleFriendAction() {
+    setFriendActionLoading(true)
+    if (friendStatus === 'none') {
+      await supabase.from('friend_requests').insert({
+        sender_id: session.user.id,
+        receiver_id: id,
+      })
+      setFriendStatus('pending_sent')
+    } else if (friendStatus === 'pending_received') {
+      // Accept the request
+      const { data: req } = await supabase
+        .from('friend_requests')
+        .select('id')
+        .eq('sender_id', id)
+        .eq('receiver_id', session.user.id)
+        .eq('status', 'pending')
+        .maybeSingle()
+      if (req) {
+        await supabase.from('friend_requests').update({ status: 'accepted' }).eq('id', req.id)
+        setFriendStatus('friends')
+      }
+    } else if (friendStatus === 'friends') {
+      await supabase.rpc('unfriend', { friend: id })
+      setFriendStatus('none')
+    }
+    setFriendActionLoading(false)
+  }
+
+  async function handleMessage() {
+    const { data: convId } = await supabase.rpc('get_or_create_conversation', { other_user: id })
+    if (convId) navigate(`/messages/${convId}`)
+  }
 
   async function fetchProvider() {
     const { data } = await supabase
@@ -51,6 +109,13 @@ export default function ProviderProfile({ session }) {
   const mainImage = portfolioImages[selectedImage] || portfolioImages[0]
   const reviewCount = reviews.length
   const avgRating = provider.avg_rating ? Number(provider.avg_rating).toFixed(1) : null
+
+  const friendBtnLabel = {
+    none: 'Add Friend',
+    pending_sent: 'Pending',
+    pending_received: 'Accept Request',
+    friends: 'Friends',
+  }[friendStatus]
 
   return (
     <div className="listing-page">
@@ -91,6 +156,25 @@ export default function ProviderProfile({ session }) {
       {/* Right: content */}
       <div className="listing-content">
         <div className="listing-header-actions">
+          {!isOwn && session && (
+            <>
+              <button
+                type="button"
+                className={`listing-friend-btn${friendStatus === 'friends' ? ' listing-friend-btn-active' : ''}${friendStatus === 'pending_sent' ? ' listing-friend-btn-pending' : ''}`}
+                onClick={handleFriendAction}
+                disabled={friendActionLoading || friendStatus === 'pending_sent'}
+              >
+                {friendBtnLabel}
+              </button>
+              <button
+                type="button"
+                className="listing-message-btn"
+                onClick={handleMessage}
+              >
+                Message
+              </button>
+            </>
+          )}
           <button type="button" className="listing-icon-btn" aria-label="Share">⎘</button>
           <button type="button" className="listing-icon-btn" aria-label="Save">♡</button>
         </div>
@@ -98,9 +182,9 @@ export default function ProviderProfile({ session }) {
           {firstService?.name || name}
         </h1>
         <div className="listing-tags">
-          <span className="listing-tag">Responds Fast</span>
-          <span className="listing-tag">Responds Fast</span>
-          <span className="listing-tag">Responds Fast</span>
+          {(provider.tags || []).slice(0, 3).map((tag, i) => (
+            <span key={i} className="listing-tag">{tag}</span>
+          ))}
         </div>
 
         <div className="listing-provider-row">
