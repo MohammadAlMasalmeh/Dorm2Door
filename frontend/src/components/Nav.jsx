@@ -133,7 +133,7 @@ export default function Nav({ session, userProfile }) {
       <div className="nav-right nav-right-stack">
         <NavLink to="/appointments" end className={({ isActive }) => `nav-stack-item${isActive ? ' active' : ''}`}>
           <StorefrontIcon />
-          <span>Marketplace</span>
+          <span>Dashboard</span>
         </NavLink>
 
         <NavLink to="/discover" className={({ isActive }) => `nav-stack-item${isActive ? ' active' : ''}`}>

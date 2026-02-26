@@ -2,21 +2,12 @@ import { useState, useEffect, useMemo } from 'react'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 
-const ALL_TAGS = ['delivery', 'groceries', 'tutoring', 'cleaning', 'laundry', 'errands', 'photography', 'tech support']
-
-const POPULAR_SEARCHES = [
-  'Eyelash Extension',
-  'Moving Services',
-  'House Party DJ',
-  'Graphic Design',
-  'Calculus Tutor',
-  'Marketing Video',
-]
+const ALL_TAGS = ['delivery', 'groceries', 'tutoring', 'haircuts', 'cleaning', 'laundry', 'errands', 'photography', 'tech support']
 
 const CATEGORIES = [
   { key: 'photography', label: 'Photography' },
   { key: 'tutoring', label: 'Tutoring' },
-  { key: 'cleaning', label: 'Haircuts' },
+  { key: 'haircuts', label: 'Haircuts' },
   { key: 'errands', label: 'Nails' },
   { key: 'delivery', label: 'Delivery' },
   { key: 'tech support', label: 'Tech Support' },
@@ -51,19 +42,62 @@ function normalizeForSearch(text) {
     .replace(/[^a-z0-9]/g, '')   // drop punctuation
 }
 
-export default function Home() {
+export default function Home({ session }) {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const query = (searchParams.get('q') || '').trim().toLowerCase()
-  const [searchInput, setSearchInput] = useState(query)
+  const queryFromUrl = (searchParams.get('q') || '').trim()
+  const [searchInput, setSearchInput] = useState(queryFromUrl)
 
   const [providers, setProviders] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeTags, setActiveTags] = useState(new Set())
   const [sortBy, setSortBy] = useState('rating')
+  const [upcomingAppointments, setUpcomingAppointments] = useState([])
+  const [popularSearches, setPopularSearches] = useState([])
 
-  useEffect(() => { setSearchInput(query) }, [query])
+  useEffect(() => { setSearchInput(queryFromUrl) }, [queryFromUrl])
   useEffect(() => { fetchProviders() }, [activeTags, sortBy])
+
+  // Fetch current user's upcoming appointments (pending/confirmed, future only)
+  useEffect(() => {
+    if (!session?.user?.id) { setUpcomingAppointments([]); return }
+    const now = new Date().toISOString()
+    supabase
+      .from('appointments')
+      .select('id, scheduled_at, status, providers (id, users (display_name)), services (name, price)')
+      .eq('consumer_id', session.user.id)
+      .in('status', ['pending', 'confirmed'])
+      .gte('scheduled_at', now)
+      .order('scheduled_at', { ascending: true })
+      .limit(5)
+      .then(({ data }) => setUpcomingAppointments(data || []))
+  }, [session?.user?.id])
+
+  // Derive popular searches from actual service names + provider tags (count, then top 8; normalize key so no duplicates)
+  useEffect(() => {
+    Promise.all([
+      supabase.from('services').select('name'),
+      supabase.from('providers').select('tags'),
+    ]).then(([svcRes, provRes]) => {
+      const counts = {}
+      const normalize = (s) => (s || '').trim().toLowerCase()
+      ;(svcRes.data || []).forEach((r) => {
+        const n = normalize(r.name)
+        if (n) counts[n] = (counts[n] || 0) + 1
+      })
+      ;(provRes.data || []).forEach((r) => {
+        (r.tags || []).forEach((t) => {
+          const tag = normalize(t)
+          if (tag) counts[tag] = (counts[tag] || 0) + 1
+        })
+      })
+      const sorted = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([term]) => term)
+      setPopularSearches(sorted.length ? sorted : ALL_TAGS.slice(0, 6))
+    })
+  }, [])
 
   async function fetchProviders() {
     setLoading(true)
@@ -79,22 +113,20 @@ export default function Home() {
   }
 
   const filtered = useMemo(() => {
-    if (!query) return providers
-    const normalizedQuery = normalizeForSearch(query)
+    if (!queryFromUrl) return providers
+    const normalizedQuery = normalizeForSearch(queryFromUrl)
     return providers.filter(p => {
       const name = p.users?.display_name || ''
       const tags = (p.tags || []).join(' ')
       const bio  = p.bio || ''
 
       const combined = `${name} ${tags} ${bio}`.toLowerCase()
-      // Basic substring match first
-      if (combined.includes(query)) return true
+      if (combined.includes(queryFromUrl.toLowerCase())) return true
 
-      // Fuzzy-ish: ignore spaces & punctuation so \"hair cut\" matches \"haircut\"
       const normalizedCombined = normalizeForSearch(combined)
       return normalizedCombined.includes(normalizedQuery)
     })
-  }, [providers, query])
+  }, [providers, queryFromUrl])
 
   function handleSearchSubmit(e) {
     e.preventDefault()
@@ -170,17 +202,34 @@ export default function Home() {
 
       {/* Upcoming Appointments strip */}
       <section className="landing-upcoming">
-        <div className="landing-upcoming-inner">
+        <div className={`landing-upcoming-inner${upcomingAppointments.length === 0 ? ' landing-upcoming-inner--empty' : ''}`}>
           <span className="landing-upcoming-label">Upcoming Appointments</span>
-          <div className="landing-upcoming-nav">
-            <button type="button" className="landing-upcoming-arrow" aria-label="Previous">‹</button>
-            <button type="button" className="landing-upcoming-arrow" aria-label="Next">›</button>
-          </div>
-          <Link to="/appointments" className="landing-upcoming-cards">
-            <div className="landing-upcoming-card landing-upcoming-card-placeholder" />
-            <div className="landing-upcoming-card landing-upcoming-card-placeholder" />
-            <div className="landing-upcoming-card landing-upcoming-card-placeholder" />
-          </Link>
+          {upcomingAppointments.length === 0 ? (
+            <div className="landing-upcoming-empty-state">
+              <span className="landing-upcoming-empty-icon" aria-hidden>📅</span>
+              <span className="landing-upcoming-empty-text">No upcoming appointments</span>
+              <Link to="/discover" className="landing-upcoming-empty-cta">Find a service</Link>
+            </div>
+          ) : (
+            <div className="landing-upcoming-cards">
+              {upcomingAppointments.map((appt) => {
+                const d = new Date(appt.scheduled_at)
+                const dateStr = d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+                const timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+                const providerName = appt.providers?.users?.display_name || 'Provider'
+                const serviceName = appt.services?.name || 'Service'
+                const price = appt.services?.price != null ? `$${Number(appt.services.price).toFixed(0)}` : ''
+                return (
+                  <Link key={appt.id} to="/appointments" className="landing-upcoming-card landing-upcoming-card-real">
+                    <span className="landing-upcoming-card-service">{serviceName}</span>
+                    <span className="landing-upcoming-card-provider">{providerName}</span>
+                    <span className="landing-upcoming-card-datetime">{dateStr} · {timeStr}</span>
+                    {price && <span className="landing-upcoming-card-price">{price}</span>}
+                  </Link>
+                )
+              })}
+            </div>
+          )}
         </div>
       </section>
 
@@ -207,7 +256,7 @@ export default function Home() {
           <div className="landing-empty">
             <p className="landing-empty-title">No providers found</p>
             <p className="landing-empty-desc">
-              {query || activeTags.size > 0 ? 'Try different filters or search.' : 'Be the first to offer a service!'}
+              {queryFromUrl || activeTags.size > 0 ? 'Try different filters or search.' : 'Be the first to offer a service!'}
             </p>
           </div>
         ) : (
@@ -257,26 +306,26 @@ export default function Home() {
         )}
       </section>
 
-      {/* Popular searches */}
+      {/* Popular searches — from actual service names + tags */}
       <section className="landing-section">
         <h2 className="landing-section-title">Popular searches</h2>
         <div className="landing-popular-chips">
-          {POPULAR_SEARCHES.map(term => (
+          {popularSearches.map(term => (
             <button
               key={term}
               type="button"
               className="landing-popular-chip"
               onClick={() => applyPopularSearch(term)}
             >
-              "{term}"
+              {term.replace(/\b\w/g, c => c.toUpperCase())}
             </button>
           ))}
         </div>
       </section>
 
-      {/* Sort By Category */}
+      {/* Filter by category — filters the provider list above */}
       <section className="landing-section">
-        <h2 className="landing-section-title landing-section-title-sm">Sort By Category</h2>
+        <h2 className="landing-section-title landing-section-title-sm">Filter by category</h2>
         <div className="landing-category-grid">
           {CATEGORIES.map(cat => (
             <button
@@ -298,29 +347,28 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Optional filter chips (minimal) */}
-      {(activeTags.size > 0 || query) && (
-        <section className="landing-filters landing-filters-minimal">
-          <div className="filter-chips">
-            {query && <span className="landing-results-label">Results for &quot;{query}&quot;</span>}
-            {ALL_TAGS.map(t => (
-              <button
-                key={t}
-                type="button"
-                className={`chip${activeTags.has(t) ? ' chip-active' : ''}`}
-                onClick={() => toggleTag(t)}
-              >
-                {t}
-              </button>
-            ))}
-            {activeTags.size > 0 && (
-              <button type="button" className="chip chip-clear" onClick={() => setActiveTags(new Set())}>
-                Clear
-              </button>
-            )}
-          </div>
-        </section>
-      )}
+      {/* Filter by tag — always visible so users can filter the list above */}
+      <section className="landing-filters landing-filters-minimal">
+        <div className="filter-chips">
+          {queryFromUrl && <span className="landing-results-label">Results for &quot;{queryFromUrl}&quot;</span>}
+          {!queryFromUrl && activeTags.size === 0 && <span className="landing-results-label">Filter by tag</span>}
+          {ALL_TAGS.map(t => (
+            <button
+              key={t}
+              type="button"
+              className={`chip${activeTags.has(t) ? ' chip-active' : ''}`}
+              onClick={() => toggleTag(t)}
+            >
+              {t}
+            </button>
+          ))}
+          {activeTags.size > 0 && (
+            <button type="button" className="chip chip-clear" onClick={() => setActiveTags(new Set())}>
+              Clear
+            </button>
+          )}
+        </div>
+      </section>
     </div>
   )
 }

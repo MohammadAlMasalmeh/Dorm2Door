@@ -103,10 +103,10 @@ function parseTime(timeStr) {
   return h
 }
 
-function generateSlots(availability) {
-  if (!availability?.startTime || !availability?.endTime) return DEFAULT_SLOTS
-  const startH = parseTime(availability.startTime)
-  const endH = parseTime(availability.endTime)
+function generateSlots(daySchedule) {
+  if (!daySchedule?.startTime || !daySchedule?.endTime) return DEFAULT_SLOTS
+  const startH = parseTime(daySchedule.startTime)
+  const endH = parseTime(daySchedule.endTime)
   if (startH >= endH) return DEFAULT_SLOTS
   const slots = []
   for (let h = startH; h < endH; h++) {
@@ -115,6 +115,28 @@ function generateSlots(availability) {
     slots.push(`${displayH}:00 ${ampm}`)
   }
   return slots
+}
+
+function getAvailableDaysAndSlotsForDate(availability, dateStr) {
+  const a = availability
+  if (!a) return { availableDays: [0, 1, 2, 3, 4, 5, 6], getSlots: () => DEFAULT_SLOTS }
+  if (a.days && (a.startTime != null || a.endTime != null)) {
+    const days = Array.isArray(a.days) ? a.days : [0, 1, 2, 3, 4, 5, 6]
+    return {
+      availableDays: days,
+      getSlots: () => generateSlots({ startTime: a.startTime || '9:00 AM', endTime: a.endTime || '6:00 PM' }),
+    }
+  }
+  const availableDays = []
+  for (let d = 0; d <= 6; d++) {
+    const v = a[String(d)] ?? a[d]
+    if (v && v.startTime && v.endTime) availableDays.push(d)
+  }
+  const getSlots = (dayOfWeek) => {
+    const v = a[String(dayOfWeek)] ?? a[dayOfWeek]
+    return generateSlots(v || null)
+  }
+  return { availableDays, getSlots }
 }
 
 export default function BookAppointment({ session }) {
@@ -211,12 +233,13 @@ export default function BookAppointment({ session }) {
   const selectedDate = date ? new Date(date + 'T00:00:00') : null
   const duration = service.duration_minutes ? `${service.duration_minutes} min` : '—'
 
-  // Dynamic availability
+  // Dynamic availability (per-day or legacy)
   const availability = provider.availability
-  const availableDays = availability?.days ?? [0, 1, 2, 3, 4, 5, 6]
+  const { availableDays, getSlots } = getAvailableDaysAndSlotsForDate(availability)
   const allDays = [0, 1, 2, 3, 4, 5, 6]
   const disabledDays = allDays.filter(d => !availableDays.includes(d))
-  const slots = generateSlots(availability)
+  const selectedDayOfWeek = date ? new Date(date + 'T00:00:00').getDay() : null
+  const slots = selectedDayOfWeek != null ? getSlots(selectedDayOfWeek) : []
 
   return (
     <div className="booking-listing">

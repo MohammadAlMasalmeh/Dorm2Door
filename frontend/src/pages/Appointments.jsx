@@ -162,7 +162,7 @@ export default function Appointments({ session, userProfile }) {
   return (
     <div className="bookings-page">
       <aside className="bookings-sidebar">
-        <h2 className="bookings-sidebar-title">Appointments</h2>
+        <h2 className="bookings-sidebar-title">Dashboard</h2>
         <nav className="bookings-sidebar-nav">
           <Link to="/" className="bookings-sidebar-item">
             <span className="bookings-sidebar-icon">⌂</span>
@@ -182,7 +182,8 @@ export default function Appointments({ session, userProfile }) {
       </aside>
 
       <div className="bookings-main">
-        <h1 className="bookings-page-title">Appointments</h1>
+        <h1 className="bookings-page-title">Dashboard</h1>
+        <p className="bookings-page-subtitle">Your appointments and activity</p>
         {actionError && (
           <div className="alert alert-error" style={{ marginBottom: 16 }} role="alert">
             {actionError}

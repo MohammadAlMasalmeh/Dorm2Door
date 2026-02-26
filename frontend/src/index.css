@@ -450,41 +450,51 @@ body {
   background: var(--bg-alt);
   border-radius: 16px;
   min-height: 345px;
-  padding: 16px 56px 16px 60px;
+  padding: 16px 24px 16px 24px;
   display: flex;
   flex-direction: column;
+}
+.landing-upcoming-inner--empty {
+  min-height: 0;
+  padding: 14px 20px;
 }
 .landing-upcoming-label {
   font-size: 1.25rem;
   color: var(--text-primary);
   margin-bottom: 12px;
 }
-.landing-upcoming-nav {
-  position: absolute;
-  top: 50%;
-  left: 12px;
-  right: 12px;
-  transform: translateY(-50%);
-  display: flex;
-  justify-content: space-between;
-  pointer-events: none;
+.landing-upcoming-inner--empty .landing-upcoming-label {
+  margin-bottom: 0;
 }
-.landing-upcoming-arrow {
-  pointer-events: auto;
-  width: 40px;
-  height: 40px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-size: 1.5rem;
-  color: var(--text-secondary);
+.landing-upcoming-empty-state {
   display: flex;
   align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  transition: color 0.2s, background 0.2s;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-top: 12px;
 }
-.landing-upcoming-arrow:hover { color: var(--accent); background: var(--card); }
+.landing-upcoming-empty-icon {
+  font-size: 1.125rem;
+  opacity: 0.8;
+}
+.landing-upcoming-empty-text {
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  flex: 1;
+}
+.landing-upcoming-empty-cta {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.landing-upcoming-empty-cta:hover {
+  text-decoration: underline;
+}
 .landing-upcoming-cards {
   display: flex;
   gap: 19px;
@@ -505,6 +515,21 @@ body {
 .landing-upcoming-card-placeholder {
   background: #d9d9d9;
 }
+.landing-upcoming-card-real {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  justify-content: center;
+  gap: 6px;
+  text-decoration: none;
+  color: inherit;
+  transition: box-shadow 0.2s;
+}
+.landing-upcoming-card-real:hover { box-shadow: var(--shadow); }
+.landing-upcoming-card-service { font-weight: 600; font-size: 1rem; color: var(--text-primary); }
+.landing-upcoming-card-provider { font-size: 0.875rem; color: var(--text-secondary); }
+.landing-upcoming-card-datetime { font-size: 0.8125rem; color: var(--text-muted); }
+.landing-upcoming-card-price { font-size: 0.875rem; font-weight: 500; color: var(--accent); }
 
 /* ── Landing: Section headings (Figma) ────────────────────── */
 .landing-section {
@@ -2575,6 +2600,11 @@ textarea.form-input {
   font-size: 1.75rem;
   font-weight: 400;
   color: var(--text-primary);
+  margin: 0 0 8px;
+}
+.bookings-page-subtitle {
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
   margin: 0 0 24px;
 }
 .bookings-columns {
@@ -3414,6 +3444,26 @@ textarea.form-input {
 .avail-time-sep {
   color: var(--text-muted);
   font-size: 0.85rem;
+}
+.avail-per-day {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.avail-per-day-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.avail-per-day-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  min-width: 28px;
+}
+.avail-per-day-row .avail-time-select {
+  max-width: 120px;
 }
 
 /* ============================================================

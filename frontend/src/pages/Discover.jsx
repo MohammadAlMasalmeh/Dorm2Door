@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { MapContainer, TileLayer, Circle, Marker, Popup, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { supabase } from '../supabaseClient'
 import 'leaflet/dist/leaflet.css'
@@ -156,31 +156,23 @@ function Discover() {
             <MapClickHandler onMapClick={(e) => setCenter([e.latlng.lat, e.latlng.lng])} />
             {userLocation && <Marker position={userLocation} icon={userIcon}><Popup>You are here</Popup></Marker>}
             {results.map((r) => {
-              const center = [Number(r.latitude), Number(r.longitude)]
-              const radiusM = (r.service_radius_km != null ? Number(r.service_radius_km) : 10) * 1000
+              const position = [Number(r.latitude), Number(r.longitude)]
               return (
-                <React.Fragment key={r.provider_id}>
-                  <Circle
-                    center={center}
-                    radius={radiusM}
-                    pathOptions={{ color: 'var(--accent)', fillColor: 'var(--accent)', fillOpacity: 0.12, weight: 2 }}
-                    eventHandlers={{ click: () => setSelectedId(r.provider_id) }}
-                  />
-                  <Marker
-                    position={center}
-                    icon={providerIcon}
-                    eventHandlers={{ click: () => setSelectedId(r.provider_id) }}
-                  >
-                    <Popup>
-                      <div className="discover-popup">
-                        <strong>{r.display_name || 'Provider'}</strong>
-                        <div><Stars value={r.avg_rating} /> {r.distance_km} km away</div>
-                        {r.min_price != null && <div>From ${Number(r.min_price).toFixed(2)}</div>}
-                        <Link to={`/provider/${r.provider_id}`} className="discover-popup-link">View profile</Link>
-                      </div>
-                    </Popup>
-                  </Marker>
-                </React.Fragment>
+                <Marker
+                  key={r.provider_id}
+                  position={position}
+                  icon={providerIcon}
+                  eventHandlers={{ click: () => setSelectedId(r.provider_id) }}
+                >
+                  <Popup>
+                    <div className="discover-popup">
+                      <strong>{r.display_name || 'Provider'}</strong>
+                      <div><Stars value={r.avg_rating} /> {r.distance_km} km away</div>
+                      {r.min_price != null && <div>From ${Number(r.min_price).toFixed(2)}</div>}
+                      <Link to={`/provider/${r.provider_id}`} className="discover-popup-link">View profile</Link>
+                    </div>
+                  </Popup>
+                </Marker>
               )
             })}
           </MapContainer>

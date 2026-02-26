@@ -54,7 +54,7 @@ export default function App() {
       <Nav session={session} userProfile={userProfile} />
       <main className="main-content">
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<Home session={session} />} />
           <Route path="/provider/:id" element={<ProviderProfile session={session} />} />
           <Route path="/book/:providerId/:serviceId" element={<BookAppointment session={session} />} />
           <Route path="/appointments" element={<Appointments session={session} userProfile={userProfile} />} />
