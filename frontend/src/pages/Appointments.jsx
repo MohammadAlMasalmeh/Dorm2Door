@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 
 function ReviewModal({ appt, onClose, onSubmit }) {
@@ -28,7 +28,7 @@ function ReviewModal({ appt, onClose, onSubmit }) {
       <div className="modal">
         <h3 className="modal-title">Leave a Review</h3>
         <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 20, marginTop: -14 }}>
-          {appt.providers?.users?.display_name} · {appt.services?.name}
+          {appt.providers?.users?.display_name} · {appt.service_options ? `${appt.services?.name} · ${appt.service_options.name}` : appt.services?.name}
         </p>
         {error && <div className="alert alert-error">{error}</div>}
         <form onSubmit={handleSubmit}>
@@ -63,8 +63,12 @@ function ApptCard({ appt, variant, onCancel, onAccept, onDecline, onReview, onCo
   const d = new Date(appt.scheduled_at)
   const dateStr = d.toLocaleString([], { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
   const providerName = appt.providers?.users?.display_name || appt.users?.display_name || '—'
-  const serviceName = appt.services?.name || '—'
-  const price = appt.services?.price != null ? `$${Number(appt.services.price).toFixed(0)}` : ''
+  const serviceName = appt.service_options
+    ? `${appt.services?.name || ''} · ${appt.service_options.name}`.trim() || '—'
+    : (appt.services?.name || '—')
+  const price = (appt.service_options?.price != null ? appt.service_options.price : appt.services?.price) != null
+    ? `$${Number(appt.service_options?.price ?? appt.services?.price).toFixed(0)}`
+    : ''
 
   return (
     <div className="bookings-card">
@@ -89,7 +93,7 @@ function ApptCard({ appt, variant, onCancel, onAccept, onDecline, onReview, onCo
       <div className="bookings-card-actions">
         {variant === 'upcoming' && (appt.status === 'pending' || appt.status === 'confirmed') && (
           <button type="button" className="bookings-card-btn bookings-card-btn-outline" onClick={() => onCancel(appt.id)}>
-            Cancel Appointment
+            Cancel Request
           </button>
         )}
         {variant === 'upcoming' && appt.status === 'completed' && !appt.reviews?.length && onReview && (
@@ -100,11 +104,11 @@ function ApptCard({ appt, variant, onCancel, onAccept, onDecline, onReview, onCo
         {variant === 'pending' && appt.status === 'pending' && (
           <>
             <button type="button" className="bookings-card-btn bookings-card-btn-accept" onClick={() => onAccept(appt.id)}>Accept</button>
-            <button type="button" className="bookings-card-btn bookings-card-btn-outline" onClick={() => onDecline(appt.id)}>Decline</button>
+            <button type="button" className="bookings-card-btn bookings-card-btn-decline" onClick={() => onDecline(appt.id)}>Decline</button>
           </>
         )}
         {variant === 'pending' && appt.status === 'confirmed' && onComplete && (
-          <button type="button" className="bookings-card-btn bookings-card-btn-outline" onClick={() => onComplete(appt.id)}>Mark complete</button>
+          <button type="button" className="bookings-card-btn bookings-card-btn-confirm" onClick={() => onComplete(appt.id)}>Confirm Appointment</button>
         )}
       </div>
     </div>
@@ -118,7 +122,7 @@ export default function Appointments({ session, userProfile }) {
   const [reviewAppt, setReviewAppt] = useState(null)
   const [actionError, setActionError] = useState('')
 
-  const isProvider = userProfile?.role === 'provider'
+  const isProvider = userProfile?.role === 'provider' || session?.user?.user_metadata?.role === 'provider'
 
   useEffect(() => { fetchAll() }, [])
 
@@ -127,13 +131,13 @@ export default function Appointments({ session, userProfile }) {
     const [{ data: b }, { data: i }] = await Promise.all([
       supabase
         .from('appointments')
-        .select('id, consumer_id, status, scheduled_at, providers (id, users (display_name)), services (name, price), reviews (id)')
+        .select('id, consumer_id, status, scheduled_at, providers (id, users (display_name)), services (name, price), service_options (name, price), reviews (id)')
         .eq('consumer_id', session.user.id)
         .order('scheduled_at', { ascending: false }),
       isProvider
         ? supabase
             .from('appointments')
-            .select('id, status, scheduled_at, users!appointments_consumer_id_fkey (display_name), services (name, price)')
+            .select('id, status, scheduled_at, users!appointments_consumer_id_fkey (display_name), services (name, price), service_options (name, price)')
             .eq('provider_id', session.user.id)
             .order('scheduled_at', { ascending: false })
         : Promise.resolve({ data: [] }),
@@ -164,19 +168,32 @@ export default function Appointments({ session, userProfile }) {
       <aside className="bookings-sidebar">
         <h2 className="bookings-sidebar-title">Dashboard</h2>
         <nav className="bookings-sidebar-nav">
-          <Link to="/" className="bookings-sidebar-item">
-            <span className="bookings-sidebar-icon">⌂</span>
-            Home
-          </Link>
+          <NavLink to="/appointments" end className={({ isActive }) => `bookings-sidebar-item${isActive ? ' active' : ''}`}>
+            <span className="bookings-sidebar-icon">📋</span>
+            Overview
+          </NavLink>
           <Link to="/profile" className="bookings-sidebar-item">
             <span className="bookings-sidebar-icon">👤</span>
             Profile
           </Link>
           {isProvider && (
-            <Link to="/my-services" className="bookings-sidebar-item">
-              <span className="bookings-sidebar-icon">🛠</span>
-              My Services
-            </Link>
+            <>
+              <Link to="/my-services" className="bookings-sidebar-item">
+                <span className="bookings-sidebar-icon">🛠</span>
+                Services
+              </Link>
+              <Link to="/messages" className="bookings-sidebar-item">
+                <span className="bookings-sidebar-icon">✉</span>
+                Inbox
+              </Link>
+              <Link to="/my-services" className="bookings-sidebar-item">
+                <span className="bookings-sidebar-icon">📅</span>
+                Availability
+              </Link>
+              <Link to="/my-services" className="bookings-sidebar-item bookings-sidebar-add">
+                + Add Service
+              </Link>
+            </>
           )}
         </nav>
       </aside>
@@ -212,19 +229,29 @@ export default function Appointments({ session, userProfile }) {
             <section className="bookings-col">
               <h3 className="bookings-col-title">Pending</h3>
               <div className="bookings-cards">
-                {pending.length === 0 ? (
+                {pending.length === 0 && confirmedIncoming.length === 0 ? (
                   <p className="bookings-empty">No pending requests.</p>
                 ) : (
-                  pending.map(appt => (
-                    <ApptCard
-                      key={appt.id}
-                      appt={appt}
-                      variant="pending"
-                      onAccept={(id) => updateStatus(id, 'confirmed')}
-                      onDecline={(id) => updateStatus(id, 'cancelled')}
-                      onComplete={(id) => updateStatus(id, 'completed')}
-                    />
-                  ))
+                  <>
+                    {pending.map(appt => (
+                      <ApptCard
+                        key={appt.id}
+                        appt={appt}
+                        variant="pending"
+                        onAccept={(id) => updateStatus(id, 'confirmed')}
+                        onDecline={(id) => updateStatus(id, 'cancelled')}
+                        onComplete={(id) => updateStatus(id, 'completed')}
+                      />
+                    ))}
+                    {confirmedIncoming.map(appt => (
+                      <ApptCard
+                        key={appt.id}
+                        appt={appt}
+                        variant="pending"
+                        onComplete={(id) => updateStatus(id, 'completed')}
+                      />
+                    ))}
+                  </>
                 )}
               </div>
             </section>
@@ -236,12 +263,12 @@ export default function Appointments({ session, userProfile }) {
             <h2 className="bookings-section-title">Weekly Stats</h2>
             <div className="bookings-stats">
               <div className="bookings-stat-card">
-                <span className="bookings-stat-label">Services Provided</span>
+                <span className="bookings-stat-label">Service Rendered</span>
                 <span className="bookings-stat-value">{confirmedIncoming.length + incoming.filter(a => a.status === 'completed').length}</span>
                 <span className="bookings-stat-period">This week</span>
               </div>
               <div className="bookings-stat-card">
-                <span className="bookings-stat-label">Revenue</span>
+                <span className="bookings-stat-label">Amount</span>
                 <span className="bookings-stat-value">
                   ${incoming
                     .filter(a => a.status === 'completed')
@@ -251,9 +278,9 @@ export default function Appointments({ session, userProfile }) {
                 <span className="bookings-stat-period">This week</span>
               </div>
               <div className="bookings-stat-card">
-                <span className="bookings-stat-label">Bookings</span>
-                <span className="bookings-stat-value">{incoming.length}</span>
-                <span className="bookings-stat-period">Total</span>
+                <span className="bookings-stat-label">New Requests</span>
+                <span className="bookings-stat-value">{pending.length}</span>
+                <span className="bookings-stat-period">Pending</span>
               </div>
             </div>
             <h2 className="bookings-section-title">Your Services</h2>

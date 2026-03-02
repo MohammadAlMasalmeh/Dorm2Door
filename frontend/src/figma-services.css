@@ -1,0 +1,384 @@
+/* Services page – Figma 487-444 */
+.services-page {
+  display: grid;
+  grid-template-columns: 249px 1fr;
+  gap: 0;
+  min-height: 100vh;
+}
+
+.services-sidebar {
+  background: #E8EFE9;
+  border-right: 1px solid rgba(62, 78, 71, 0.2);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 33px;
+  min-width: 249px;
+}
+
+.services-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.services-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: rgba(33, 33, 33, 0.5);
+  font-size: 20px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.2s, color 0.2s;
+  box-sizing: border-box;
+}
+
+.services-sidebar-item:hover {
+  color: #212121;
+  background: rgba(62, 78, 71, 0.08);
+}
+
+.services-sidebar-item.active {
+  color: #212121;
+  background: rgba(62, 78, 71, 0.1);
+}
+
+.services-sidebar-item svg {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  color: inherit;
+}
+
+.services-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #C67C4E;
+  color: #F4F7F4;
+  font-size: 20px;
+  font-weight: 500;
+  border-radius: 16px;
+  text-decoration: none;
+  transition: background 0.2s;
+  box-sizing: border-box;
+  align-self: center;
+  width: 100%;
+  max-width: 200px;
+}
+
+.services-add-btn:hover {
+  background: #b56a42;
+  color: #F4F7F4;
+}
+
+.services-add-btn svg {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+}
+
+.services-main {
+  padding: 40px 48px 48px 48px;
+  max-width: 1200px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.services-title {
+  font-size: 32px;
+  font-weight: 700;
+  color: #212121;
+  letter-spacing: -0.48px;
+  margin: 0 0 24px;
+}
+
+.services-title-spaced {
+  margin-top: 48px;
+}
+
+.services-appointments-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  align-items: start;
+}
+
+.services-panel {
+  border-radius: 8px;
+  padding: 26px 26px 20px;
+  min-height: 400px;
+  box-sizing: border-box;
+}
+
+.services-panel-title {
+  font-size: 24px;
+  font-weight: 500;
+  color: #F4F7F4;
+  letter-spacing: 0.12px;
+  margin: 0 0 20px;
+}
+
+.services-panel-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+.services-panel-empty {
+  font-size: 16px;
+  color: rgba(244, 247, 244, 0.7);
+  margin: 0;
+}
+
+.services-appt-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid rgba(244, 247, 244, 0.3);
+}
+
+.services-appt-card:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.services-appt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.services-appt-service {
+  font-size: 20px;
+  font-weight: 500;
+  color: #F4F7F4;
+}
+
+.services-appt-price {
+  font-size: 20px;
+  font-weight: 500;
+  color: #F4F7F4;
+}
+
+.services-appt-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  color: rgba(244, 247, 244, 0.9);
+}
+
+.services-appt-meta svg {
+  flex-shrink: 0;
+  color: rgba(244, 247, 244, 0.9);
+}
+
+.services-appt-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.services-appt-avatar-initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(244, 247, 244, 0.4);
+  color: #F4F7F4;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.services-appt-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 32px;
+  border: 2px solid #F4F7F4;
+  border-radius: 16px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #F4F7F4;
+  background: transparent;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  align-self: flex-start;
+}
+
+.services-appt-btn-outline:hover {
+  background: rgba(244, 247, 244, 0.15);
+  color: #F4F7F4;
+}
+
+.services-appt-actions {
+  display: flex;
+  gap: 10px;
+}
+
+#stats {
+  scroll-margin-top: 24px;
+}
+
+.services-stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 32px;
+}
+
+.services-stat-card {
+  border-radius: 8px;
+  padding: 14px 17px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.services-stat-label {
+  font-size: 16px;
+  font-weight: 400;
+  color: #F4F7F4;
+  margin: 0 0 8px;
+}
+
+.services-stat-value {
+  font-size: 20px;
+  font-weight: 500;
+  color: #F4F7F4;
+  margin: 0 0 8px;
+}
+
+.services-stat-date {
+  font-size: 16px;
+  font-weight: 400;
+  color: rgba(244, 247, 244, 0.6);
+  margin: 0;
+}
+
+.services-section-title {
+  font-size: 28px;
+  font-weight: 400;
+  color: #212121;
+  margin: 32px 0 16px;
+}
+
+.services-your-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 100%;
+}
+
+.services-empty-msg {
+  font-size: 16px;
+  color: #212121;
+  margin: 0;
+}
+
+.services-empty-msg a {
+  color: #C67C4E;
+  font-weight: 500;
+}
+
+.services-your-card {
+  display: flex;
+  align-items: stretch;
+  background: #d9d9d9;
+  border-radius: 16px;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.services-your-card-img {
+  width: 214px;
+  min-height: 120px;
+  background: #c4c4c4;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  color: #888;
+}
+
+.services-your-card-body {
+  padding: 29px 0 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.services-your-card-name {
+  font-size: 24px;
+  font-weight: 400;
+  color: #212121;
+  margin: 0;
+}
+
+.services-your-card-options {
+  font-size: 0.8125rem;
+  color: rgba(33, 33, 33, 0.6);
+  margin: -4px 0 0;
+  line-height: 1.35;
+}
+
+.services-your-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: 16px;
+  color: #212121;
+}
+
+.services-your-card-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(33, 33, 33, 0.2);
+}
+
+.services-your-card-rating {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  color: #212121;
+}
+
+.services-your-card-rating svg {
+  color: #C67C4E;
+}
+
+@media (max-width: 900px) {
+  .services-page {
+    grid-template-columns: 1fr;
+  }
+
+  .services-sidebar {
+    min-width: auto;
+  }
+
+  .services-main {
+    padding: 24px 24px 48px;
+  }
+
+  .services-appointments-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .services-stats-row {
+    grid-template-columns: 1fr;
+  }
+}

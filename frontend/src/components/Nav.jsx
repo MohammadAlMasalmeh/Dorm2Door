@@ -1,12 +1,46 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link, NavLink } from 'react-router-dom'
+import { Link, NavLink, useLocation } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 
+function ServicesIcon() {
+  return (
+    <img
+      src="/nav-icon-services.svg"
+      alt=""
+      className="nav-stack-icon-img"
+      width={32}
+      height={32}
+      aria-hidden
+    />
+  )
+}
+function MessagesIcon() {
+  return (
+    <img
+      src="/nav-icon-messages.svg"
+      alt=""
+      className="nav-stack-icon-img"
+      width={32}
+      height={32}
+      aria-hidden
+    />
+  )
+}
 function StorefrontIcon() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
       <polyline points="9 22 9 12 15 12 15 22" />
+    </svg>
+  )
+}
+function CalendarIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
     </svg>
   )
 }
@@ -34,14 +68,6 @@ function ChatIcon() {
     </svg>
   )
 }
-function ProfileIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
-  )
-}
 
 function timeAgo(ts) {
   const diff = Date.now() - new Date(ts).getTime()
@@ -55,6 +81,8 @@ function timeAgo(ts) {
 }
 
 export default function Nav({ session, userProfile }) {
+  const location = useLocation()
+  const isLanding = location.pathname === '/'
   const avatarUrl = userProfile?.avatar_url
   const initials = (userProfile?.display_name || session?.user?.email || '?')
     .split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -125,16 +153,18 @@ export default function Nav({ session, userProfile }) {
           <span className="nav-logo-tape" aria-hidden>
             <img src="/logo-tape.png" alt="" />
           </span>
-          <span className="nav-logo-text">DORM2Door</span>
+          <span className="nav-logo-text">DORM2DOOR</span>
         </Link>
         <span className="nav-location">Austin, TX</span>
       </div>
 
       <div className="nav-right nav-right-stack">
-        <NavLink to="/appointments" end className={({ isActive }) => `nav-stack-item${isActive ? ' active' : ''}`}>
-          <StorefrontIcon />
-          <span>Dashboard</span>
-        </NavLink>
+        {((userProfile?.role === 'provider') || (session?.user?.user_metadata?.role === 'provider')) && (
+          <NavLink to="/services" className={({ isActive }) => `nav-stack-item${isActive ? ' active' : ''}`}>
+            <ServicesIcon />
+            <span>Services</span>
+          </NavLink>
+        )}
 
         <NavLink to="/discover" className={({ isActive }) => `nav-stack-item${isActive ? ' active' : ''}`}>
           <MapIcon />
@@ -142,50 +172,54 @@ export default function Nav({ session, userProfile }) {
         </NavLink>
 
         <NavLink to="/messages" className={({ isActive }) => `nav-stack-item${isActive ? ' active' : ''}`}>
-          <ChatIcon />
+          <MessagesIcon />
           <span>Messages</span>
         </NavLink>
 
-        {/* Notifications bell with dropdown */}
-        <div className="nav-notif-wrap" ref={notifRef}>
-          <button
-            type="button"
-            className={`nav-stack-item${showNotifDropdown ? ' active' : ''}`}
-            onClick={() => setShowNotifDropdown(prev => !prev)}
-          >
-            <span style={{ position: 'relative', display: 'inline-flex' }}>
-              <BellIcon />
-              {unreadCount > 0 && <span className="notif-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
-            </span>
-            <span>Notifications</span>
-          </button>
+        {!isLanding && (
+          <>
+            {/* Notifications bell with dropdown */}
+            <div className="nav-notif-wrap" ref={notifRef}>
+              <button
+                type="button"
+                className={`nav-stack-item${showNotifDropdown ? ' active' : ''}`}
+                onClick={() => setShowNotifDropdown(prev => !prev)}
+              >
+                <span style={{ position: 'relative', display: 'inline-flex' }}>
+                  <BellIcon />
+                  {unreadCount > 0 && <span className="notif-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
+                </span>
+                <span>Notifications</span>
+              </button>
 
-          {showNotifDropdown && (
-            <div className="notif-dropdown">
-              <div className="notif-dropdown-header">
-                <h3>Notifications</h3>
-                {unreadCount > 0 && (
-                  <button type="button" onClick={markAllRead} className="notif-mark-read">
-                    Mark all read
-                  </button>
-                )}
-              </div>
-              <div className="notif-dropdown-list">
-                {notifications.length === 0 ? (
-                  <p className="notif-empty">No notifications yet.</p>
-                ) : (
-                  notifications.map(n => (
-                    <div key={n.id} className={`notif-item${n.read ? '' : ' notif-unread'}`}>
-                      <div className="notif-item-title">{n.title}</div>
-                      <div className="notif-item-body">{n.body}</div>
-                      <div className="notif-item-time">{timeAgo(n.created_at)}</div>
-                    </div>
-                  ))
-                )}
-              </div>
+              {showNotifDropdown && (
+                <div className="notif-dropdown">
+                  <div className="notif-dropdown-header">
+                    <h3>Notifications</h3>
+                    {unreadCount > 0 && (
+                      <button type="button" onClick={markAllRead} className="notif-mark-read">
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+                  <div className="notif-dropdown-list">
+                    {notifications.length === 0 ? (
+                      <p className="notif-empty">No notifications yet.</p>
+                    ) : (
+                      notifications.map(n => (
+                        <div key={n.id} className={`notif-item${n.read ? '' : ' notif-unread'}`}>
+                          <div className="notif-item-title">{n.title}</div>
+                          <div className="notif-item-body">{n.body}</div>
+                          <div className="notif-item-time">{timeAgo(n.created_at)}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </>
+        )}
 
         <NavLink to="/profile" className={({ isActive }) => `nav-stack-item${isActive ? ' active' : ''}`}>
           {avatarUrl ? (
@@ -195,13 +229,15 @@ export default function Nav({ session, userProfile }) {
           )}
           <span>Profile</span>
         </NavLink>
-        <button
-          type="button"
-          className="nav-signout"
-          onClick={() => supabase.auth.signOut()}
-        >
-          Sign out
-        </button>
+        {!isLanding && (
+          <button
+            type="button"
+            className="nav-signout"
+            onClick={() => supabase.auth.signOut()}
+          >
+            Sign out
+          </button>
+        )}
       </div>
     </nav>
   )

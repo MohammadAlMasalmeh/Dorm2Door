@@ -1,0 +1,226 @@
+/* Figma Booking 535-2774 – book appointment page */
+.figma-booking {
+  --figma-accent: #C67C4E;
+  --figma-dark: #3E4E47;
+  --figma-bg: #E8EFE9;
+  --figma-card: #F4F7F4;
+  --figma-text: #212121;
+  background: var(--figma-bg);
+  min-height: 100vh;
+  padding: 24px 0;
+}
+
+.figma-booking .booking-listing {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.figma-booking .booking-gallery-main,
+.figma-booking .booking-gallery-thumb {
+  border-radius: 8px;
+}
+
+.figma-booking .booking-content {
+  background: var(--figma-bg);
+  padding: 0;
+}
+
+.figma-booking .booking-back-link {
+  color: var(--figma-text);
+  text-decoration: none;
+  font-size: 0.95rem;
+  margin-bottom: 12px;
+  display: inline-block;
+}
+.figma-booking .booking-back-link:hover {
+  color: var(--figma-accent);
+}
+
+.figma-booking .booking-title {
+  color: var(--figma-text);
+  font-size: 1.5rem;
+  font-weight: 400;
+}
+
+.figma-booking .booking-tag {
+  background: var(--figma-dark);
+  color: var(--figma-card);
+  border-radius: 16px;
+  padding: 8px 12px;
+  font-size: 1rem;
+}
+
+.figma-booking .booking-provider-name,
+.figma-booking .booking-provider-meta {
+  color: var(--figma-text);
+}
+.figma-booking .booking-provider-location {
+  color: rgba(33, 33, 33, 0.6);
+}
+
+.figma-booking .booking-heading {
+  color: var(--figma-text);
+}
+.figma-booking .booking-overview {
+  color: var(--figma-text);
+}
+
+.figma-booking .booking-divider {
+  background: rgba(62, 78, 71, 0.2);
+}
+
+.figma-booking .booking-service-row-selected {
+  background: var(--figma-card);
+  border: 2px solid var(--figma-dark);
+  border-radius: 8px;
+}
+.figma-booking .booking-service-name,
+.figma-booking .booking-service-price,
+.figma-booking .booking-service-duration {
+  color: var(--figma-text);
+}
+.figma-booking .booking-service-select {
+  color: var(--figma-accent);
+  font-weight: 500;
+  background: transparent;
+}
+
+/* Calendar – Figma style */
+.figma-booking .cal-wrap {
+  background: var(--figma-card);
+  border: 2px solid var(--figma-dark);
+  border-radius: 12px;
+  padding: 16px;
+  max-width: 320px;
+}
+.figma-booking .cal-header {
+  color: var(--figma-text);
+}
+.figma-booking .cal-month-label {
+  color: var(--figma-text);
+  font-weight: 600;
+}
+.figma-booking .cal-nav-btn {
+  color: var(--figma-text);
+  border-color: var(--figma-dark);
+}
+.figma-booking .cal-nav-btn:hover:not(:disabled) {
+  border-color: var(--figma-accent);
+  color: var(--figma-accent);
+}
+.figma-booking .cal-day-label {
+  color: var(--figma-text);
+  opacity: 0.8;
+}
+.figma-booking .cal-day {
+  color: var(--figma-text);
+}
+.figma-booking .cal-day-past {
+  color: #D0D0D0;
+}
+.figma-booking .cal-day-today {
+  color: var(--figma-accent);
+  font-weight: 700;
+}
+.figma-booking .cal-day-selected {
+  background: var(--figma-dark);
+  color: #fff;
+  font-weight: 700;
+}
+.figma-booking .cal-day:hover:not(.cal-day-past):not(.cal-day-selected) {
+  border-color: var(--figma-dark);
+  color: var(--figma-dark);
+}
+
+/* Time slots – pill style, selected dark green */
+.figma-booking .time-slots-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.figma-booking .time-slot-btn {
+  padding: 10px 16px;
+  border-radius: 20px;
+  border: 2px solid var(--figma-dark);
+  background: var(--figma-card);
+  color: var(--figma-text);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+.figma-booking .time-slot-btn:hover:not(:disabled):not(.time-slot-taken) {
+  border-color: var(--figma-accent);
+  color: var(--figma-accent);
+}
+.figma-booking .time-slot-btn.active {
+  background: var(--figma-dark);
+  color: #fff;
+  border-color: var(--figma-dark);
+  font-weight: 600;
+}
+.figma-booking .time-slot-btn.time-slot-taken {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Add a description */
+.figma-booking .booking-description-label {
+  color: var(--figma-text);
+  font-weight: 500;
+}
+.figma-booking .booking-description-input {
+  background: var(--figma-card);
+  border: 2px solid var(--figma-dark);
+  border-radius: 8px;
+  color: var(--figma-text);
+  padding: 12px;
+}
+.figma-booking .booking-description-input::placeholder {
+  color: rgba(33, 33, 33, 0.5);
+}
+
+/* Book! button – accent */
+.figma-booking .booking-cta {
+  background: var(--figma-accent);
+  color: #fff;
+  border: none;
+  border-radius: 24px;
+  padding: 14px 24px;
+  font-size: 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-top: 20px;
+}
+.figma-booking .booking-cta:hover:not(:disabled) {
+  background: #b56a42;
+  color: #fff;
+}
+.figma-booking .booking-cta:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.figma-booking .booking-hint {
+  color: rgba(33, 33, 33, 0.7);
+}
+
+.figma-booking .booking-summary-inline {
+  color: var(--figma-text);
+}
+.figma-booking .booking-summary-price {
+  color: var(--figma-text);
+  font-weight: 600;
+}
+
+.figma-booking .alert-error {
+  background: rgba(198, 124, 78, 0.15);
+  border-color: var(--figma-accent);
+  color: var(--figma-text);
+}
+
+@media (max-width: 700px) {
+  .figma-booking .booking-listing {
+    grid-template-columns: 1fr;
+  }
+}

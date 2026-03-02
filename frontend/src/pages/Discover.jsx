@@ -41,6 +41,7 @@ function Discover() {
   const [maxPrice, setMaxPrice] = useState('')
   const [maxDistanceKm, setMaxDistanceKm] = useState('50')
   const [selectedId, setSelectedId] = useState(null)
+  const [locationError, setLocationError] = useState(false)
 
   const fetchNearby = useCallback(async () => {
     setLoading(true)
@@ -67,11 +68,22 @@ function Discover() {
   }, [fetchNearby])
 
   useEffect(() => {
-    if (!navigator.geolocation) return
-    navigator.geolocation.getCurrentPosition(
-      (pos) => setUserLocation([pos.coords.latitude, pos.coords.longitude]),
-      () => {}
-    )
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+    let cancelled = false
+    try {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (!cancelled) setUserLocation([pos.coords.latitude, pos.coords.longitude])
+        },
+        () => {
+          if (!cancelled) setLocationError(true)
+        },
+        { timeout: 10000, maximumAge: 300000, enableHighAccuracy: false }
+      )
+    } catch (e) {
+      if (!cancelled) setLocationError(true)
+    }
+    return () => { cancelled = true }
   }, [])
 
   const goToMyLocation = () => {
@@ -79,15 +91,24 @@ function Discover() {
       setCenter(userLocation)
       return
     }
-    if (!navigator.geolocation) return alert('Geolocation not supported')
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const loc = [pos.coords.latitude, pos.coords.longitude]
-        setUserLocation(loc)
-        setCenter(loc)
-      },
-      () => alert('Could not get your location')
-    )
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setLocationError(true)
+      return
+    }
+    try {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const loc = [pos.coords.latitude, pos.coords.longitude]
+          setUserLocation(loc)
+          setCenter(loc)
+          setLocationError(false)
+        },
+        () => setLocationError(true),
+        { timeout: 10000, maximumAge: 300000, enableHighAccuracy: false }
+      )
+    } catch (e) {
+      setLocationError(true)
+    }
   }
 
   const userIcon = L.divIcon({
@@ -139,6 +160,9 @@ function Discover() {
           <button type="button" className="discover-btn discover-btn-primary" onClick={goToMyLocation}>
             Use my location
           </button>
+          {locationError && (
+            <p className="discover-location-hint">Location unavailable — click the map to choose an area.</p>
+          )}
         </div>
 
         <div className="discover-map-wrap">

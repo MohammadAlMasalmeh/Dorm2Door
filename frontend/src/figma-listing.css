@@ -1,0 +1,515 @@
+/* Figma Listing 535-2603 – provider/service detail page (TPEO New Fellow) */
+.figma-listing {
+  --figma-accent: #C67C4E;
+  --figma-dark: #3E4E47;
+  --figma-bg: #E8EFE9;
+  --figma-card: #F4F7F4;
+  --figma-text: #212121;
+  background: var(--figma-bg);
+  min-height: calc(100vh - var(--nav-h, 128px));
+  width: 100%;
+  box-sizing: border-box;
+  padding: 32px 48px 48px;
+}
+
+.figma-listing.listing-page {
+  max-width: none;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 42% 1fr;
+  gap: 32px;
+  align-items: start;
+}
+
+/* ── Back button ─────────────────────────────────── */
+.figma-listing .listing-back {
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  z-index: 2;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--figma-text);
+  border-radius: 8px;
+  text-decoration: none;
+}
+.figma-listing .listing-back:hover {
+  color: var(--figma-accent);
+}
+
+/* ── Gallery ─────────────────────────────────────── */
+.figma-listing .listing-gallery {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.figma-listing .listing-gallery-main {
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: #e2e2e2;
+  background-size: cover;
+  background-position: center;
+}
+.figma-listing .listing-gallery-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(0, 0, 0, 0.25);
+}
+.figma-listing .listing-gallery-placeholder svg {
+  width: 28px;
+  height: 28px;
+}
+.figma-listing .listing-gallery-thumbs {
+  display: flex;
+  gap: 12px;
+}
+.figma-listing .listing-gallery-thumb {
+  flex: 1;
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: #e2e2e2;
+  background-size: cover;
+  background-position: center;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.figma-listing .listing-gallery-thumb svg {
+  width: 20px;
+  height: 20px;
+  color: rgba(0, 0, 0, 0.25);
+}
+.figma-listing .listing-gallery-thumb.active {
+  border-color: var(--figma-accent);
+}
+
+/* ── Content column ──────────────────────────────── */
+.figma-listing .listing-content {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  padding-top: 4px;
+}
+
+/* Header: Share/Bookmark icons */
+.figma-listing .listing-header-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.figma-listing .listing-header-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+.figma-listing .listing-icon-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1.1rem;
+  color: var(--figma-text);
+  border-radius: 8px;
+}
+.figma-listing .listing-icon-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* Friend / Message action buttons in header */
+.figma-listing .listing-friend-btn,
+.figma-listing .listing-message-btn-inline {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1.5px solid var(--figma-dark);
+  background: transparent;
+  color: var(--figma-dark);
+  transition: background 0.15s, color 0.15s;
+}
+.figma-listing .listing-friend-btn:hover,
+.figma-listing .listing-message-btn-inline:hover {
+  background: var(--figma-dark);
+  color: var(--figma-card);
+}
+.figma-listing .listing-friend-btn-active {
+  background: var(--figma-dark);
+  color: var(--figma-card);
+}
+.figma-listing .listing-friend-btn-pending {
+  opacity: 0.5;
+}
+
+/* Title */
+.figma-listing .listing-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--figma-text);
+  margin: 0;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+}
+
+/* Tags (Responds Fast, Verified) */
+.figma-listing .listing-tags {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.figma-listing .listing-tag {
+  background: var(--figma-dark);
+  color: var(--figma-card);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.figma-listing .listing-tag-verified {
+  background: var(--figma-dark);
+  color: var(--figma-card);
+}
+.figma-listing .listing-tag-primary {
+  background: var(--figma-accent);
+  color: var(--figma-card);
+}
+
+/* Provider row */
+.figma-listing .listing-provider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.figma-listing .listing-provider-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.figma-listing .listing-provider-avatar-initials {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #d9d9d9;
+  color: var(--figma-text);
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.figma-listing .listing-provider-name {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--figma-text);
+}
+.figma-listing .listing-provider-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.figma-listing .listing-provider-meta {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.5);
+}
+.figma-listing .listing-provider-location {
+  font-size: 0.875rem;
+  color: rgba(0, 0, 0, 0.5);
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.figma-listing .listing-provider-location svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+/* ── Overview ────────────────────────────────────── */
+.figma-listing .listing-heading {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--figma-text);
+  margin: 0 0 4px;
+}
+.figma-listing .listing-overview {
+  font-size: 0.9375rem;
+  font-weight: 400;
+  color: var(--figma-text);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.figma-listing .listing-divider {
+  height: 1px;
+  background: rgba(62, 78, 71, 0.2);
+  margin: 4px 0;
+}
+
+/* ── Services — Figma ListingService cards ───────── */
+.figma-listing .listing-services {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.figma-listing .listing-service-group {
+  margin-bottom: 0;
+}
+.figma-listing .listing-service-group-name {
+  display: none;
+}
+.figma-listing .listing-service-card,
+.figma-listing .listing-service-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: transparent;
+  border: 2px solid var(--figma-dark);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.figma-listing .listing-service-name {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--figma-text);
+  margin: 0;
+}
+.figma-listing .listing-service-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.figma-listing .listing-service-price-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.figma-listing .listing-service-price {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--figma-text);
+}
+.figma-listing .listing-service-duration {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--figma-text);
+  opacity: 0.35;
+}
+.figma-listing .listing-service-select {
+  background: var(--figma-accent);
+  color: var(--figma-card);
+  border: none;
+  border-radius: 16px;
+  padding: 10px 18px;
+  min-width: 72px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.figma-listing .listing-service-select:hover {
+  background: #b56a42;
+  color: var(--figma-card);
+}
+.figma-listing .listing-empty {
+  font-size: 0.875rem;
+  color: rgba(0, 0, 0, 0.45);
+  margin: 0;
+}
+
+/* ── Reviews ─────────────────────────────────────── */
+.figma-listing .listing-reviews-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.figma-listing .listing-reviews-summary {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+.figma-listing .listing-reviews-score {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.figma-listing .listing-reviews-number {
+  font-size: 2.5rem;
+  font-weight: 900;
+  color: var(--figma-text);
+  line-height: 1;
+}
+.figma-listing .listing-reviews-count {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--figma-text);
+}
+.figma-listing .listing-stars {
+  color: var(--figma-accent);
+}
+.figma-listing .listing-reviews-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  padding-top: 8px;
+}
+.figma-listing .listing-reviews-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--figma-text);
+}
+.figma-listing .listing-reviews-bar-label {
+  width: 14px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.figma-listing .listing-reviews-bar-track {
+  flex: 1;
+  height: 12px;
+  border-radius: 6px;
+  background: rgba(62, 78, 71, 0.15);
+  overflow: hidden;
+}
+.figma-listing .listing-reviews-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--figma-dark);
+  width: 0;
+}
+
+/* Review cards */
+.figma-listing .listing-reviews-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.figma-listing .listing-review-card {
+  background: #d9d9d9;
+  border-radius: 20px;
+  padding: 14px 16px;
+  min-height: 48px;
+}
+.figma-listing .listing-review-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.figma-listing .listing-review-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.figma-listing .listing-review-avatar-initials {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.15);
+  color: var(--figma-text);
+  font-size: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.figma-listing .listing-review-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--figma-text);
+}
+.figma-listing .listing-review-comment {
+  font-size: 0.8125rem;
+  color: var(--figma-text);
+  margin: 0;
+  opacity: 0.75;
+  line-height: 1.4;
+}
+
+/* ── CTAs — Send a Message + Book ────────────────── */
+.figma-listing .listing-send-message-btn,
+.figma-listing .listing-message-btn-block {
+  width: 100%;
+  padding: 14px 24px;
+  border-radius: 24px;
+  border: none;
+  background: var(--figma-accent);
+  color: var(--figma-card);
+  font-size: 1.25rem;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  cursor: pointer;
+  transition: background 0.15s;
+  text-align: center;
+  text-decoration: none;
+  display: block;
+}
+.figma-listing .listing-send-message-btn:hover,
+.figma-listing .listing-message-btn-block:hover {
+  background: #b56a42;
+  color: var(--figma-card);
+}
+
+.figma-listing .listing-book-cta {
+  width: 100%;
+  padding: 14px 24px;
+  border-radius: 24px;
+  border: none;
+  background: var(--figma-dark);
+  color: var(--figma-card);
+  font-size: 1.25rem;
+  font-weight: 500;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s;
+  display: block;
+  margin-top: 0;
+}
+.figma-listing .listing-book-cta:hover {
+  background: #2e3b35;
+  color: var(--figma-card);
+}
+
+/* ── Responsive ──────────────────────────────────── */
+@media (max-width: 800px) {
+  .figma-listing {
+    padding: 16px;
+  }
+  .figma-listing.listing-page {
+    grid-template-columns: 1fr;
+  }
+  .figma-listing .listing-gallery-main {
+    aspect-ratio: 4/3;
+  }
+}

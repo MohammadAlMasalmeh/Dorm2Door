@@ -143,6 +143,7 @@ export default function BookAppointment({ session }) {
   const { providerId, serviceId } = useParams()
   const navigate = useNavigate()
 
+  const [serviceOption, setServiceOption] = useState(null)
   const [service, setService]   = useState(null)
   const [provider, setProvider] = useState(null)
   const [date, setDate]         = useState('')
@@ -154,12 +155,22 @@ export default function BookAppointment({ session }) {
   const [takenSlots, setTakenSlots] = useState(new Set())
 
   useEffect(() => {
-    Promise.all([
-      supabase.from('services').select('*').eq('id', serviceId).single(),
-      supabase.from('providers').select('*, users (display_name, avatar_url)').eq('id', providerId).single(),
-    ]).then(([{ data: svc }, { data: prov }]) => {
-      setService(svc); setProvider(prov)
-    })
+    const load = async () => {
+      const [{ data: opt }, { data: svc }, { data: prov }] = await Promise.all([
+        supabase.from('service_options').select('*, services (*)').eq('id', serviceId).maybeSingle(),
+        supabase.from('services').select('*').eq('id', serviceId).maybeSingle(),
+        supabase.from('providers').select('*, users (display_name, avatar_url)').eq('id', providerId).single(),
+      ])
+      setProvider(prov)
+      if (opt && opt.services) {
+        setServiceOption(opt)
+        setService(Array.isArray(opt.services) ? opt.services[0] : opt.services)
+      } else if (svc) {
+        setService(svc)
+        setServiceOption(null)
+      }
+    }
+    load()
   }, [serviceId, providerId])
 
   // Fetch booked slots when date changes
@@ -190,11 +201,14 @@ export default function BookAppointment({ session }) {
     setLoading(true)
 
     const scheduledAt = new Date(`${date}T${to24(slot)}:00`).toISOString()
-    const { data: result, error: err } = await supabase.rpc('ensure_consumer_then_book', {
+    const params = {
       p_provider_id: providerId,
-      p_service_id: serviceId,
+      p_service_id: service.id,
       p_scheduled_at: scheduledAt,
-    })
+    }
+    if (serviceOption) params.p_service_option_id = serviceOption.id
+
+    const { data: result, error: err } = await supabase.rpc('ensure_consumer_then_book', params)
 
     setLoading(false)
     if (err) {
@@ -231,6 +245,8 @@ export default function BookAppointment({ session }) {
   const providerAvatar = provider.users?.avatar_url
   const initials = (providerName || 'P').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
   const selectedDate = date ? new Date(date + 'T00:00:00') : null
+  const displayName = serviceOption ? `${service.name} · ${serviceOption.name}` : service.name
+  const displayPrice = serviceOption ? Number(serviceOption.price) : Number(service.price || 0)
   const duration = service.duration_minutes ? `${service.duration_minutes} min` : '—'
 
   // Dynamic availability (per-day or legacy)
@@ -242,7 +258,7 @@ export default function BookAppointment({ session }) {
   const slots = selectedDayOfWeek != null ? getSlots(selectedDayOfWeek) : []
 
   return (
-    <div className="booking-listing">
+    <div className="booking-listing figma-booking">
       {/* Left: image gallery */}
       <div className="booking-gallery">
         <div
@@ -270,7 +286,7 @@ export default function BookAppointment({ session }) {
       <div className="booking-content">
         <Link to={`/provider/${providerId}`} className="back-btn booking-back-link">← Back to profile</Link>
 
-        <h1 className="booking-title">{service.name}</h1>
+        <h1 className="booking-title">{displayName}</h1>
 
         <div className="booking-tags">
           <span className="booking-tag">Responds Fast</span>
@@ -306,10 +322,10 @@ export default function BookAppointment({ session }) {
 
         <h2 className="booking-heading">Services</h2>
         <div className="booking-service-row booking-service-row-selected">
-          <span className="booking-service-name">{service.name}</span>
+          <span className="booking-service-name">{displayName}</span>
           <div className="booking-service-right">
             <div className="booking-service-price-block">
-              <span className="booking-service-price">${Number(service.price).toFixed(0)}+</span>
+              <span className="booking-service-price">${displayPrice.toFixed(0)}</span>
               <span className="booking-service-duration">{duration}</span>
             </div>
             <span className="booking-service-select">Select</span>
@@ -362,7 +378,7 @@ export default function BookAppointment({ session }) {
           disabled={loading || !date || !slot}
           aria-disabled={loading || !date || !slot}
         >
-          {loading ? 'Booking…' : 'Book'}
+          {loading ? 'Booking…' : 'Book!'}
         </button>
         {(!date || !slot) && (
           <p className="booking-hint">Pick a date in the calendar, then choose an available time.</p>
@@ -371,7 +387,7 @@ export default function BookAppointment({ session }) {
         <div className="booking-summary-inline">
           <div className="booking-summary-inline-row">
             <span>Price</span>
-            <span className="booking-summary-price">${Number(service.price).toFixed(2)}</span>
+            <span className="booking-summary-price">${displayPrice.toFixed(2)}</span>
           </div>
           {selectedDate && slot && (
             <div className="booking-summary-inline-row">

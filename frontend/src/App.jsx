@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { supabase } from './supabaseClient'
 import Auth from './pages/Auth'
 import Home from './pages/Home'
@@ -10,9 +10,11 @@ import ProviderSetup from './pages/ProviderSetup'
 import Profile from './pages/Profile'
 import Messages from './pages/Messages'
 import Discover from './pages/Discover'
+import Services from './pages/Services'
 import Nav from './components/Nav'
 
 export default function App() {
+  const location = useLocation()
   const [session, setSession] = useState(null)
   const [userProfile, setUserProfile] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -52,7 +54,7 @@ export default function App() {
   return (
     <>
       <Nav session={session} userProfile={userProfile} />
-      <main className="main-content">
+      <main className={`main-content${location.pathname === '/' ? ' main-content--landing' : ''}`}>
         <Routes>
           <Route path="/" element={<Home session={session} />} />
           <Route path="/provider/:id" element={<ProviderProfile session={session} />} />
@@ -63,6 +65,7 @@ export default function App() {
           <Route path="/messages" element={<Messages session={session} />} />
           <Route path="/messages/:conversationId" element={<Messages session={session} />} />
           <Route path="/discover" element={<Discover />} />
+          <Route path="/services" element={(userProfile?.role === 'provider' || session?.user?.user_metadata?.role === 'provider') ? <Services session={session} userProfile={userProfile} /> : <Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>

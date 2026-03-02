@@ -18,28 +18,8 @@ function Stars({ value }) {
   return <span className="stars">{'★'.repeat(n)}{'☆'.repeat(5 - n)}</span>
 }
 
-// Hero illustrations from Figma landing (TPEO-New-Fellow): students left, barber right — served from public/
-const HERO_IMAGE_LEFT = '/hero-illus-left.png'
-const HERO_IMAGE_RIGHT = '/hero-illus-right.png'
-
-function HeroIllustration({ side }) {
-  const src = side === 'left' ? HERO_IMAGE_LEFT : HERO_IMAGE_RIGHT
-  return (
-    <div className={`hero-illus hero-illus-${side}`} aria-hidden>
-      <img
-        src={src}
-        alt=""
-        className="hero-illus-img"
-      />
-    </div>
-  )
-}
-
 function normalizeForSearch(text) {
-  return (text || '')
-    .toLowerCase()
-    .replace(/\s+/g, '')         // ignore spaces: "hair cut" vs "haircut"
-    .replace(/[^a-z0-9]/g, '')   // drop punctuation
+  return (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')
 }
 
 export default function Home({ session }) {
@@ -58,22 +38,23 @@ export default function Home({ session }) {
   useEffect(() => { setSearchInput(queryFromUrl) }, [queryFromUrl])
   useEffect(() => { fetchProviders() }, [activeTags, sortBy])
 
-  // Fetch current user's upcoming appointments (pending/confirmed, future only)
   useEffect(() => {
     if (!session?.user?.id) { setUpcomingAppointments([]); return }
     const now = new Date().toISOString()
-    supabase
-      .from('appointments')
-      .select('id, scheduled_at, status, providers (id, users (display_name)), services (name, price)')
-      .eq('consumer_id', session.user.id)
-      .in('status', ['pending', 'confirmed'])
-      .gte('scheduled_at', now)
-      .order('scheduled_at', { ascending: true })
-      .limit(5)
-      .then(({ data }) => setUpcomingAppointments(data || []))
+    async function fetchUpcoming() {
+      const { data } = await supabase
+        .from('appointments')
+        .select('id, scheduled_at, status, providers (id, location, users (display_name)), services (name, price), service_options (name, price)')
+        .eq('consumer_id', session.user.id)
+        .in('status', ['pending', 'confirmed'])
+        .gte('scheduled_at', now)
+        .order('scheduled_at', { ascending: true })
+        .limit(5)
+      setUpcomingAppointments(data || [])
+    }
+    fetchUpcoming()
   }, [session?.user?.id])
 
-  // Derive popular searches from actual service names + provider tags (count, then top 8; normalize key so no duplicates)
   useEffect(() => {
     Promise.all([
       supabase.from('services').select('name'),
@@ -81,21 +62,12 @@ export default function Home({ session }) {
     ]).then(([svcRes, provRes]) => {
       const counts = {}
       const normalize = (s) => (s || '').trim().toLowerCase()
-      ;(svcRes.data || []).forEach((r) => {
-        const n = normalize(r.name)
-        if (n) counts[n] = (counts[n] || 0) + 1
-      })
+      ;(svcRes.data || []).forEach((r) => { const n = normalize(r.name); if (n) counts[n] = (counts[n] || 0) + 1 })
       ;(provRes.data || []).forEach((r) => {
-        (r.tags || []).forEach((t) => {
-          const tag = normalize(t)
-          if (tag) counts[tag] = (counts[tag] || 0) + 1
-        })
+        (r.tags || []).forEach((t) => { const tag = normalize(t); if (tag) counts[tag] = (counts[tag] || 0) + 1 })
       })
-      const sorted = Object.entries(counts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 8)
-        .map(([term]) => term)
-      setPopularSearches(sorted.length ? sorted : ALL_TAGS.slice(0, 6))
+      const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([term]) => term)
+      setPopularSearches(sorted.length ? sorted : ['House Party DJ', 'Tutoring', 'Haircut', 'Moving Help', 'Cleaning', 'Dog Walking'])
     })
   }, [])
 
@@ -103,12 +75,13 @@ export default function Home({ session }) {
     setLoading(true)
     let q = supabase
       .from('providers')
-      .select('id, bio, tags, avg_rating, location, users (display_name, avatar_url), services (image_url, price, name)')
+      .select('id, bio, tags, avg_rating, location, users (display_name, avatar_url), services (image_url, price, name, service_options (price))')
     if (activeTags.size > 0) q = q.overlaps('tags', [...activeTags])
     if (sortBy === 'rating') q = q.order('avg_rating', { ascending: false })
     else q = q.order('id', { ascending: false })
     const { data } = await q
-    setProviders(data || [])
+    // Only show providers that have at least one service so we don't link to "Provider not found"
+    setProviders((data || []).filter(p => p?.id && Array.isArray(p.services) && p.services.length > 0))
     setLoading(false)
   }
 
@@ -116,15 +89,12 @@ export default function Home({ session }) {
     if (!queryFromUrl) return providers
     const normalizedQuery = normalizeForSearch(queryFromUrl)
     return providers.filter(p => {
-      const name = p.users?.display_name || ''
-      const tags = (p.tags || []).join(' ')
-      const bio  = p.bio || ''
-
-      const combined = `${name} ${tags} ${bio}`.toLowerCase()
+      const name = (p.users?.display_name || '').toLowerCase()
+      const tags = (p.tags || []).join(' ').toLowerCase()
+      const bio = (p.bio || '').toLowerCase()
+      const combined = `${name} ${tags} ${bio}`
       if (combined.includes(queryFromUrl.toLowerCase())) return true
-
-      const normalizedCombined = normalizeForSearch(combined)
-      return normalizedCombined.includes(normalizedQuery)
+      return normalizeForSearch(combined).includes(normalizedQuery)
     })
   }, [providers, queryFromUrl])
 
@@ -132,14 +102,6 @@ export default function Home({ session }) {
     e.preventDefault()
     if (searchInput.trim()) navigate(`/?q=${encodeURIComponent(searchInput.trim())}`)
     else navigate('/')
-  }
-
-  function toggleTag(tag) {
-    setActiveTags(prev => {
-      const next = new Set(prev)
-      next.has(tag) ? next.delete(tag) : next.add(tag)
-      return next
-    })
   }
 
   function selectCategory(catKey) {
@@ -164,211 +126,192 @@ export default function Home({ session }) {
   }
 
   function cardPrice(p) {
-    const prices = (p.services || []).map(s => s.price).filter(Boolean)
+    const prices = []
+    ;(p.services || []).forEach(s => {
+      if (s.price != null) prices.push(Number(s.price))
+      ;(s.service_options || []).forEach(opt => {
+        if (opt.price != null) prices.push(Number(opt.price))
+      })
+    })
     if (prices.length === 0) return null
-    const min = Math.min(...prices.map(Number))
-    const max = Math.max(...prices.map(Number))
+    const min = Math.min(...prices)
+    const max = Math.max(...prices)
     return max > min ? `$${min}-${max}` : `$${Number(min).toFixed(0)}`
   }
 
-  return (
-    <div className="landing-page">
-      {/* Hero */}
-      <section className="landing-hero">
-        <h1 className="landing-hero-title">Support Students</h1>
-        <p className="landing-hero-subtitle">Find services from other students</p>
+  function renderServiceCard(p) {
+    const img = cardImage(p)
+    const tags = (p.tags || []).slice(0, 2)
+    const priceStr = cardPrice(p)
+    const serviceName = (p.services && p.services[0] && p.services[0].name) ? p.services[0].name : (p.users?.display_name || 'Provider')
+    const displayName = p.users?.display_name || 'Provider'
+    const avatarUrl = p.users?.avatar_url
+    const initials = (displayName || 'P').slice(0, 2).toUpperCase()
 
-        <div className="landing-hero-search-row">
-          <HeroIllustration side="left" />
-          <form className="landing-search-wrap" onSubmit={handleSearchSubmit}>
-            <span className="landing-search-icon" aria-hidden>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
-              </svg>
-            </span>
+    return (
+      <Link key={p.id} to={`/provider/${p.id}`} className="figma-service-card">
+        <div className="figma-service-card-img" style={img ? { backgroundImage: `url(${img})` } : {}}>
+          {!img && <div style={{ width: '100%', height: '100%', background: '#c4c4c4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontSize: 48 }}>{(displayName || 'P')[0]}</div>}
+        </div>
+        <div className="figma-service-card-body">
+          <div className="figma-service-card-tags">
+            {tags.map(t => <span key={t} className="figma-service-card-tag">{t}</span>)}
+          </div>
+          <h3 className="figma-service-card-name">{serviceName}</h3>
+          <div className="figma-service-card-provider">
+            {avatarUrl ? <img src={avatarUrl} alt="" className="figma-service-card-avatar" /> : <span className="figma-service-card-avatar-initials">{initials}</span>}
+            <span>{displayName}</span>
+          </div>
+          <div className="figma-service-card-rating">
+            <Stars value={p.avg_rating} />
+            <span>{p.avg_rating ? `${Number(p.avg_rating).toFixed(1)} (10)` : 'New'}</span>
+          </div>
+          <div className="figma-service-card-meta">
+            <span className="figma-service-card-distance">{p.location ? `${p.location}` : '.5 mi away'}</span>
+            <span className="figma-service-card-price">{priceStr || '$10-50'}</span>
+          </div>
+        </div>
+      </Link>
+    )
+  }
+
+  return (
+    <div className="figma-landing">
+      <section className="figma-hero">
+        <div className="figma-hero-bg-char" aria-hidden>
+          <img src="/haircut-illustration.png" alt="" />
+        </div>
+        <div className="figma-hero-inner">
+          <h1 className="figma-hero-title">Find Services from Fellow Students</h1>
+          <form className="figma-search-wrap" onSubmit={handleSearchSubmit}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
             <input
               type="search"
-              className="landing-search-input"
+              className="figma-search-input"
               placeholder='Search for "Math tutoring"'
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
               aria-label="Search services"
             />
           </form>
-          <HeroIllustration side="right" />
+        </div>
+        <div className="figma-location">
+          <svg width="19" height="27" viewBox="0 0 19 27" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M9.5 0C4.253 0 0 4.253 0 9.5c0 7.125 9.5 17.5 9.5 17.5s9.5-10.375 9.5-17.5C19 4.253 14.747 0 9.5 0zm0 12.875a3.375 3.375 0 1 1 0-6.75 3.375 3.375 0 0 1 0 6.75z" />
+          </svg>
+          <span>Austin, Texas</span>
         </div>
       </section>
 
-      {/* Upcoming Appointments strip */}
-      <section className="landing-upcoming">
-        <div className={`landing-upcoming-inner${upcomingAppointments.length === 0 ? ' landing-upcoming-inner--empty' : ''}`}>
-          <span className="landing-upcoming-label">Upcoming Appointments</span>
+      <div className="figma-upcoming-wrap">
+        <div className="figma-upcoming-box">
+          <h2 className="figma-upcoming-title">Upcoming Appointments</h2>
           {upcomingAppointments.length === 0 ? (
-            <div className="landing-upcoming-empty-state">
-              <span className="landing-upcoming-empty-icon" aria-hidden>📅</span>
-              <span className="landing-upcoming-empty-text">No upcoming appointments</span>
-              <Link to="/discover" className="landing-upcoming-empty-cta">Find a service</Link>
-            </div>
+            <p className="figma-empty">No upcoming appointments. <Link to="/discover">Find a service</Link></p>
           ) : (
-            <div className="landing-upcoming-cards">
-              {upcomingAppointments.map((appt) => {
+            <div className="figma-upcoming-cards">
+              {upcomingAppointments.map((appt, idx) => {
                 const d = new Date(appt.scheduled_at)
-                const dateStr = d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+                const dateStr = d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })
                 const timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-                const providerName = appt.providers?.users?.display_name || 'Provider'
-                const serviceName = appt.services?.name || 'Service'
-                const price = appt.services?.price != null ? `$${Number(appt.services.price).toFixed(0)}` : ''
+                const providerName = appt.providers?.users?.display_name || 'John Guy'
+                const serviceName = appt.services?.name || 'Math Tutoring'
+                const price = appt.services?.price != null ? `$${Number(appt.services.price).toFixed(0)}` : '$30'
+                const isFirst = idx === 0
                 return (
-                  <Link key={appt.id} to="/appointments" className="landing-upcoming-card landing-upcoming-card-real">
-                    <span className="landing-upcoming-card-service">{serviceName}</span>
-                    <span className="landing-upcoming-card-provider">{providerName}</span>
-                    <span className="landing-upcoming-card-datetime">{dateStr} · {timeStr}</span>
-                    {price && <span className="landing-upcoming-card-price">{price}</span>}
-                  </Link>
+                  <div key={appt.id} className="figma-upcoming-card">
+                    <div className="figma-upcoming-card-top">
+                      <span className="figma-upcoming-card-service">{serviceName}</span>
+                      <span className="figma-upcoming-card-price">{price}</span>
+                    </div>
+                    <div className="figma-upcoming-card-meta">
+                      <span>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="10" cy="7" r="3.5" /><path d="M3 18c0-3.5 3.5-6 7-6s7 2.5 7 6" /></svg>
+                        {providerName}
+                      </span>
+                      <span>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="10" cy="10" r="8" /><path d="M10 6v4l3 3" /></svg>
+                        {dateStr} @ {timeStr}
+                      </span>
+                      <span>
+                        <svg width="14" height="20" viewBox="0 0 14 20" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 0C3.13 0 0 3.13 0 7c0 5.25 7 13 7 13s7-7.75 7-13C14 3.13 10.87 0 7 0z" /></svg>
+                        {appt.providers?.location?.trim() || 'TBD'}
+                      </span>
+                    </div>
+                    <div className="figma-upcoming-card-actions">
+                      <Link to="/appointments" className="figma-upcoming-card-cancel">{isFirst ? 'Cancel Appointment' : 'Cancel Request'}</Link>
+                      {isFirst && <Link to="/appointments" className="figma-upcoming-card-complete">Complete</Link>}
+                    </div>
+                  </div>
                 )
               })}
             </div>
           )}
         </div>
-      </section>
-
-      {/* Popular with friends */}
-      <section className="landing-section">
-        <div className="landing-section-head">
-          <h2 className="landing-section-title">Popular with friends</h2>
-          <div className="landing-section-head-right">
-            <select
-              value={sortBy}
-              onChange={e => setSortBy(e.target.value)}
-              className="landing-sort"
-              aria-label="Sort by"
-            >
-              <option value="rating">Top rated</option>
-              <option value="newest">Newest</option>
-            </select>
-            <Link to="/discover" className="landing-section-more">Discover on map</Link>
-          </div>
-        </div>
-        {loading ? (
-          <div className="landing-loading"><div className="spinner" /></div>
-        ) : filtered.length === 0 ? (
-          <div className="landing-empty">
-            <p className="landing-empty-title">No providers found</p>
-            <p className="landing-empty-desc">
-              {queryFromUrl || activeTags.size > 0 ? 'Try different filters or search.' : 'Be the first to offer a service!'}
-            </p>
-          </div>
-        ) : (
-          <div className="landing-cards-scroll">
-            {filtered.map(p => {
-              const img = cardImage(p)
-              const tags = (p.tags || []).slice(0, 2)
-              const priceStr = cardPrice(p)
-              return (
-                <Link key={p.id} to={`/provider/${p.id}`} className="landing-friend-card">
-                  <div
-                    className="landing-friend-card-image"
-                    style={img ? { backgroundImage: `url(${img})` } : {}}
-                  >
-                    {!img && <span className="landing-friend-card-placeholder">{(p.users?.display_name || 'P')[0]}</span>}
-                    <div className="landing-friend-card-tags">
-                      {tags.map(t => (
-                        <span key={t} className="landing-friend-card-tag">{t}</span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="landing-friend-card-body">
-                    <h3 className="landing-friend-card-name">
-                      {(p.services && p.services[0] && p.services[0].name) ? p.services[0].name : (p.users?.display_name || 'Provider')}
-                    </h3>
-                    <div className="landing-friend-card-provider">
-                      {(p.users?.avatar_url) ? (
-                        <img src={p.users.avatar_url} alt="" className="landing-friend-card-avatar" />
-                      ) : (
-                        <span className="landing-friend-card-avatar landing-friend-card-avatar-initials">{(p.users?.display_name || 'P')[0]}</span>
-                      )}
-                      <span>{p.users?.display_name || 'Provider'}</span>
-                    </div>
-                    <div className="landing-friend-card-rating">
-                      <Stars value={p.avg_rating} />
-                      <span>{p.avg_rating ? `${Number(p.avg_rating).toFixed(1)} (10)` : 'New'}</span>
-                    </div>
-                    <div className="landing-friend-card-meta">
-                      <span className="landing-friend-card-distance">{p.location ? `${p.location} · ` : ''}</span>
-                      <span className="landing-friend-card-price">{priceStr || '—'}</span>
-                    </div>
-                  </div>
-                </Link>
-              )
-            })}
+        {upcomingAppointments.length > 0 && (
+          <div className="figma-upcoming-nav">
+            <button type="button" className="figma-upcoming-nav-btn" aria-label="Previous">‹</button>
+            <button type="button" className="figma-upcoming-nav-btn" aria-label="Next">›</button>
           </div>
         )}
-      </section>
+      </div>
 
-      {/* Popular searches — from actual service names + tags */}
-      <section className="landing-section">
-        <h2 className="landing-section-title">Popular searches</h2>
-        <div className="landing-popular-chips">
-          {popularSearches.map(term => (
-            <button
-              key={term}
-              type="button"
-              className="landing-popular-chip"
-              onClick={() => applyPopularSearch(term)}
-            >
-              {term.replace(/\b\w/g, c => c.toUpperCase())}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {/* Filter by category — filters the provider list above */}
-      <section className="landing-section">
-        <h2 className="landing-section-title landing-section-title-sm">Filter by category</h2>
-        <div className="landing-category-grid">
-          {CATEGORIES.map(cat => (
-            <button
-              key={cat.key}
-              type="button"
-              className={`landing-category-card${activeTags.has(cat.key) ? ' active' : ''}`}
-              onClick={() => selectCategory(cat.key)}
-            >
-              <div className="landing-category-card-bg" />
-              <div className="landing-category-card-icon" aria-hidden>
-                <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="24" cy="24" r="10" />
-                  <path d="M24 14v10l6 6" />
-                </svg>
-              </div>
-              <span className="landing-category-card-label">{cat.label}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {/* Filter by tag — always visible so users can filter the list above */}
-      <section className="landing-filters landing-filters-minimal">
-        <div className="filter-chips">
-          {queryFromUrl && <span className="landing-results-label">Results for &quot;{queryFromUrl}&quot;</span>}
-          {!queryFromUrl && activeTags.size === 0 && <span className="landing-results-label">Filter by tag</span>}
-          {ALL_TAGS.map(t => (
-            <button
-              key={t}
-              type="button"
-              className={`chip${activeTags.has(t) ? ' chip-active' : ''}`}
-              onClick={() => toggleTag(t)}
-            >
-              {t}
-            </button>
-          ))}
-          {activeTags.size > 0 && (
-            <button type="button" className="chip chip-clear" onClick={() => setActiveTags(new Set())}>
-              Clear
-            </button>
+      <div className="figma-content">
+        <section className="figma-section">
+          <div className="figma-section-head">
+            <h2 className="figma-section-title">Popular with friends</h2>
+            <Link to="/discover" className="figma-section-more">See more</Link>
+          </div>
+          {loading ? <div className="figma-loading"><div className="spinner" /></div> : filtered.length === 0 ? (
+            <p className="figma-empty">No providers found. Try different filters or be the first to offer a service!</p>
+          ) : (
+            <div className="figma-cards-scroll">
+              {filtered.map(p => renderServiceCard(p))}
+            </div>
           )}
-        </div>
-      </section>
+        </section>
+
+        {/* Popular searches */}
+        <section className="figma-section">
+          <h2 className="figma-section-title">Popular searches</h2>
+          <div className="figma-popular-chips">
+            {(popularSearches.length ? popularSearches : ['House Party DJ', 'Tutoring', 'Haircut', 'Moving Help', 'Cleaning']).map(term => (
+              <button key={term} type="button" className="figma-popular-chip" onClick={() => applyPopularSearch(term)}>
+                &quot;{term.replace(/\b\w/g, c => c.toUpperCase())}&quot;
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* Suggested For you */}
+        <section className="figma-section figma-section-tight">
+          <div className="figma-section-head">
+            <h2 className="figma-section-title">Suggested For you</h2>
+            <Link to="/discover" className="figma-section-more">See more</Link>
+          </div>
+          {!loading && filtered.length > 0 && (
+            <div className="figma-cards-scroll">
+              {filtered.slice(0, 6).map(p => renderServiceCard(p))}
+            </div>
+          )}
+        </section>
+
+        {/* Recently Viewed */}
+        <section className="figma-section figma-section-tight">
+          <div className="figma-section-head">
+            <h2 className="figma-section-title">Recently Viewed</h2>
+            <Link to="/discover" className="figma-section-more">See more</Link>
+          </div>
+          {!loading && filtered.length > 0 && (
+            <div className="figma-cards-scroll">
+              {filtered.slice(2, 8).map(p => renderServiceCard(p))}
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   )
 }
