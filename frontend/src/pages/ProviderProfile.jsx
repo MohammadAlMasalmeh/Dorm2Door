@@ -150,7 +150,10 @@ export default function ProviderProfile({ session }) {
     <div className="listing-page figma-listing">
       {/* Left: gallery */}
       <div className="listing-gallery">
-        <Link to="/" className="listing-back" aria-label="Back">&lsaquo;</Link>
+        <div className="listing-back-row">
+          <Link to="/" className="listing-back" aria-label="Back">&lsaquo;</Link>
+          <Link to={`/user/${id}`} className="listing-back listing-back-profile">Profile</Link>
+        </div>
         <div className="listing-gallery-main" style={mainImage ? { backgroundImage: `url(${mainImage})` } : {}}>
           {!mainImage && (
             <div className="listing-gallery-placeholder">{thumbPlaceholderSvg}</div>
@@ -202,14 +205,16 @@ export default function ProviderProfile({ session }) {
           </div>
         </div>
 
-        {/* Provider row */}
+        {/* Provider row — click avatar/name to go to profile */}
         <div className="listing-provider-row">
-          {provider.users?.avatar_url ? (
-            <img src={provider.users.avatar_url} alt="" className="listing-provider-avatar" />
-          ) : (
-            <span className="listing-provider-avatar listing-provider-avatar-initials">{initials}</span>
-          )}
-          <span className="listing-provider-name">{name}</span>
+          <Link to={`/user/${id}`} className="listing-provider-link" aria-label={`View ${name}'s profile`}>
+            {provider.users?.avatar_url ? (
+              <img src={provider.users.avatar_url} alt="" className="listing-provider-avatar" />
+            ) : (
+              <span className="listing-provider-avatar listing-provider-avatar-initials">{initials}</span>
+            )}
+            <span className="listing-provider-name">{name}</span>
+          </Link>
           {provider.location && (
             <span className="listing-provider-location">
               {provider.location} &middot; ~30min

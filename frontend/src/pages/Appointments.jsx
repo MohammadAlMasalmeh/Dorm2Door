@@ -59,10 +59,71 @@ function ReviewModal({ appt, onClose, onSubmit }) {
   )
 }
 
-function ApptCard({ appt, variant, onCancel, onAccept, onDecline, onReview, onComplete }) {
+function CustomerReviewModal({ appt, session, onClose, onSubmit }) {
+  const [rating, setRating] = useState(5)
+  const [comment, setComment] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const consumerName = appt?.users?.display_name || 'Customer'
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setError(''); setLoading(true)
+    const { error: err } = await supabase.from('customer_reviews').insert({
+      appointment_id: appt.id,
+      consumer_id: appt.consumer_id,
+      provider_id: session?.user?.id,
+      rating,
+      comment: comment.trim() || null,
+    })
+    if (err) { setError(err.message); setLoading(false); return }
+    setLoading(false)
+    onSubmit()
+  }
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <h3 className="modal-title">Rate customer</h3>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 20, marginTop: -14 }}>
+          {consumerName} · How was working with them?
+        </p>
+        {error && <div className="alert alert-error">{error}</div>}
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label className="form-label">Rating</label>
+            <div className="stars-input">
+              {[1,2,3,4,5].map(n => (
+                <button key={n} type="button"
+                  className={`star-btn${n <= rating ? ' filled' : ''}`}
+                  onClick={() => setRating(n)}>★</button>
+              ))}
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Comment (optional)</label>
+            <textarea className="form-input" rows={3} placeholder="Optional note about this customer"
+              value={comment} onChange={e => setComment(e.target.value)} />
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button type="button" className="btn btn-outline" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={loading}>
+              {loading ? 'Submitting…' : 'Submit'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function ApptCard({ appt, variant, onCancel, onAccept, onDecline, onReview, onComplete, onRateCustomer }) {
   const d = new Date(appt.scheduled_at)
   const dateStr = d.toLocaleString([], { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
   const providerName = appt.providers?.users?.display_name || appt.users?.display_name || '—'
+  const consumerName = appt.users?.display_name || '—'
+  const consumerRating = appt.users?.avg_customer_rating != null ? Number(appt.users.avg_customer_rating).toFixed(1) : null
+  const consumerReviewCount = appt.users?.customer_review_count ?? 0
   const serviceName = appt.service_options
     ? `${appt.services?.name || ''} · ${appt.service_options.name}`.trim() || '—'
     : (appt.services?.name || '—')
@@ -79,7 +140,12 @@ function ApptCard({ appt, variant, onCancel, onAccept, onDecline, onReview, onCo
         </div>
         <div className="bookings-card-meta">
           <span className="bookings-card-avatar-wrap" />
-          <span className="bookings-card-meta-text">{providerName}</span>
+          <span className="bookings-card-meta-text">{variant === 'pending' ? consumerName : providerName}</span>
+          {variant === 'pending' && (consumerRating || consumerReviewCount === 0) && (
+            <span className="bookings-card-meta-rating" title="Customer rating (visible in request context)">
+              {consumerRating ? ` ★ ${consumerRating} (${consumerReviewCount})` : ' · New customer'}
+            </span>
+          )}
         </div>
         <div className="bookings-card-meta">
           <span className="bookings-card-icon bookings-card-icon-clock" aria-hidden>🕐</span>
@@ -98,7 +164,7 @@ function ApptCard({ appt, variant, onCancel, onAccept, onDecline, onReview, onCo
         )}
         {variant === 'upcoming' && appt.status === 'completed' && !appt.reviews?.length && onReview && (
           <button type="button" className="bookings-card-btn bookings-card-btn-outline" onClick={() => onReview(appt)}>
-            Leave Review
+            Write review
           </button>
         )}
         {variant === 'pending' && appt.status === 'pending' && (
@@ -108,7 +174,12 @@ function ApptCard({ appt, variant, onCancel, onAccept, onDecline, onReview, onCo
           </>
         )}
         {variant === 'pending' && appt.status === 'confirmed' && onComplete && (
-          <button type="button" className="bookings-card-btn bookings-card-btn-confirm" onClick={() => onComplete(appt.id)}>Confirm Appointment</button>
+          <button type="button" className="bookings-card-btn bookings-card-btn-confirm" onClick={() => onComplete(appt.id)}>Mark complete</button>
+        )}
+        {variant === 'pending' && appt.status === 'completed' && !(appt.customer_reviews?.length) && onRateCustomer && (
+          <button type="button" className="bookings-card-btn bookings-card-btn-outline" onClick={() => onRateCustomer(appt)}>
+            Rate customer
+          </button>
         )}
       </div>
     </div>
@@ -120,6 +191,7 @@ export default function Appointments({ session, userProfile }) {
   const [incoming, setIncoming] = useState([])
   const [loading, setLoading] = useState(true)
   const [reviewAppt, setReviewAppt] = useState(null)
+  const [customerReviewAppt, setCustomerReviewAppt] = useState(null)
   const [actionError, setActionError] = useState('')
 
   const isProvider = userProfile?.role === 'provider' || session?.user?.user_metadata?.role === 'provider'
@@ -137,7 +209,7 @@ export default function Appointments({ session, userProfile }) {
       isProvider
         ? supabase
             .from('appointments')
-            .select('id, status, scheduled_at, users!appointments_consumer_id_fkey (display_name), services (name, price), service_options (name, price)')
+            .select('id, consumer_id, status, scheduled_at, users!appointments_consumer_id_fkey (display_name, avg_customer_rating, customer_review_count), services (name, price), service_options (name, price), customer_reviews (id)')
             .eq('provider_id', session.user.id)
             .order('scheduled_at', { ascending: false })
         : Promise.resolve({ data: [] }),
@@ -160,6 +232,7 @@ export default function Appointments({ session, userProfile }) {
   const upcoming = bookings.filter(a => a.status !== 'cancelled')
   const pending = incoming.filter(a => a.status === 'pending')
   const confirmedIncoming = incoming.filter(a => a.status === 'confirmed')
+  const completedIncoming = incoming.filter(a => a.status === 'completed')
 
   if (loading) return <div className="loading-wrap"><div className="spinner" /></div>
 
@@ -229,7 +302,7 @@ export default function Appointments({ session, userProfile }) {
             <section className="bookings-col">
               <h3 className="bookings-col-title">Pending</h3>
               <div className="bookings-cards">
-                {pending.length === 0 && confirmedIncoming.length === 0 ? (
+                {pending.length === 0 && confirmedIncoming.length === 0 && completedIncoming.length === 0 ? (
                   <p className="bookings-empty">No pending requests.</p>
                 ) : (
                   <>
@@ -241,6 +314,7 @@ export default function Appointments({ session, userProfile }) {
                         onAccept={(id) => updateStatus(id, 'confirmed')}
                         onDecline={(id) => updateStatus(id, 'cancelled')}
                         onComplete={(id) => updateStatus(id, 'completed')}
+                        onRateCustomer={setCustomerReviewAppt}
                       />
                     ))}
                     {confirmedIncoming.map(appt => (
@@ -249,6 +323,15 @@ export default function Appointments({ session, userProfile }) {
                         appt={appt}
                         variant="pending"
                         onComplete={(id) => updateStatus(id, 'completed')}
+                        onRateCustomer={setCustomerReviewAppt}
+                      />
+                    ))}
+                    {completedIncoming.map(appt => (
+                      <ApptCard
+                        key={appt.id}
+                        appt={appt}
+                        variant="pending"
+                        onRateCustomer={setCustomerReviewAppt}
                       />
                     ))}
                   </>
@@ -296,6 +379,14 @@ export default function Appointments({ session, userProfile }) {
           appt={reviewAppt}
           onClose={() => setReviewAppt(null)}
           onSubmit={() => { setReviewAppt(null); fetchAll() }}
+        />
+      )}
+      {customerReviewAppt && (
+        <CustomerReviewModal
+          appt={customerReviewAppt}
+          session={session}
+          onClose={() => setCustomerReviewAppt(null)}
+          onSubmit={() => { setCustomerReviewAppt(null); fetchAll() }}
         />
       )}
     </div>

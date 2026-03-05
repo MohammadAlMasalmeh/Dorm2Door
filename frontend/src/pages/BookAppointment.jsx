@@ -284,7 +284,7 @@ export default function BookAppointment({ session }) {
 
       {/* Right: content */}
       <div className="booking-content">
-        <Link to={`/provider/${providerId}`} className="back-btn booking-back-link">← Back to profile</Link>
+        <Link to={`/provider/${providerId}`} className="back-btn booking-back-link">← Back to listing</Link>
 
         <h1 className="booking-title">{displayName}</h1>
 
@@ -304,9 +304,9 @@ export default function BookAppointment({ session }) {
               <span className="booking-provider-meta">{(provider.tags || []).slice(0, 2).join(' · ')}</span>
             )}
           </div>
-          {(provider.location || duration) && (
+          {(provider.location || (duration && duration !== '—')) && (
             <span className="booking-provider-location">
-              {provider.location ? `${provider.location} · ` : ''}{duration}
+              {[provider.location, duration && duration !== '—' ? duration : null].filter(Boolean).join(' · ')}
             </span>
           )}
         </div>
@@ -320,27 +320,21 @@ export default function BookAppointment({ session }) {
 
         <div className="booking-divider" />
 
-        <h2 className="booking-heading">Services</h2>
+        <h2 className="booking-heading">Your service</h2>
         <div className="booking-service-row booking-service-row-selected">
           <span className="booking-service-name">{displayName}</span>
-          <div className="booking-service-right">
-            <div className="booking-service-price-block">
-              <span className="booking-service-price">${displayPrice.toFixed(0)}</span>
-              <span className="booking-service-duration">{duration}</span>
-            </div>
-            <span className="booking-service-select">Select</span>
-          </div>
+          <span className="booking-service-price">${displayPrice.toFixed(0)}</span>
         </div>
 
         <div className="booking-divider" />
 
-        <h2 className="booking-heading">Select a date</h2>
+        <h2 className="booking-heading">Pick a date</h2>
         {error && <div className="alert alert-error booking-alert" role="alert">{error}</div>}
         <Calendar value={date} onChange={d => { setDate(d); setSlot('') }} disabledDays={disabledDays} />
 
         {date && (
           <>
-            <h2 className="booking-heading booking-heading-spaced">Select a time</h2>
+            <h2 className="booking-heading booking-heading-spaced">Pick a time</h2>
             <div className="time-slots-wrap">
               {slots.map(s => {
                 const isTaken = takenSlots.has(s)
@@ -381,7 +375,7 @@ export default function BookAppointment({ session }) {
           {loading ? 'Booking…' : 'Book!'}
         </button>
         {(!date || !slot) && (
-          <p className="booking-hint">Pick a date in the calendar, then choose an available time.</p>
+          <p className="booking-hint">Choose a date, then pick an available time.</p>
         )}
 
         <div className="booking-summary-inline">

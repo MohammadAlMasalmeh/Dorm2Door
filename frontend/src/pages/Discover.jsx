@@ -193,7 +193,7 @@ function Discover() {
                       <strong>{r.display_name || 'Provider'}</strong>
                       <div><Stars value={r.avg_rating} /> {r.distance_km} km away</div>
                       {r.min_price != null && <div>From ${Number(r.min_price).toFixed(2)}</div>}
-                      <Link to={`/provider/${r.provider_id}`} className="discover-popup-link">View profile</Link>
+                      <Link to={`/provider/${r.provider_id}`} className="discover-popup-link">View listing</Link>
                     </div>
                   </Popup>
                 </Marker>

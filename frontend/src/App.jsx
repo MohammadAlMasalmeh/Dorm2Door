@@ -8,6 +8,7 @@ import BookAppointment from './pages/BookAppointment'
 import Appointments from './pages/Appointments'
 import ProviderSetup from './pages/ProviderSetup'
 import Profile from './pages/Profile'
+import UserProfile from './pages/UserProfile'
 import Messages from './pages/Messages'
 import Discover from './pages/Discover'
 import Services from './pages/Services'
@@ -57,6 +58,7 @@ export default function App() {
       <main className={`main-content${location.pathname === '/' ? ' main-content--landing' : ''}`}>
         <Routes>
           <Route path="/" element={<Home session={session} />} />
+          <Route path="/user/:id" element={<UserProfile session={session} />} />
           <Route path="/provider/:id" element={<ProviderProfile session={session} />} />
           <Route path="/book/:providerId/:serviceId" element={<BookAppointment session={session} />} />
           <Route path="/appointments" element={<Appointments session={session} userProfile={userProfile} />} />

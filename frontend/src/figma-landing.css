@@ -304,10 +304,13 @@
   color: inherit;
   display: flex;
   flex-direction: column;
-  transition: box-shadow 0.2s;
+  transition: box-shadow 0.2s, transform 0.1s ease;
 }
 .figma-landing .figma-service-card:hover {
   box-shadow: 0 8px 24px rgba(62, 78, 71, 0.3);
+}
+.figma-landing .figma-service-card:active {
+  transform: scale(0.99);
 }
 .figma-landing .figma-service-card-img {
   height: 176px;
@@ -315,6 +318,8 @@
   background-size: cover;
   background-position: center;
   border-radius: 14px 14px 0 0;
+  border: 1px solid rgba(62, 78, 71, 0.25);
+  overflow: hidden;
 }
 .figma-landing .figma-service-card-body {
   padding: 14px 14px 2px;

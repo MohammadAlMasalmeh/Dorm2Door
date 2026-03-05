@@ -520,7 +520,7 @@ export default function Profile({ session, userProfile, onUpdate }) {
                   <div className="friends-list">
                     {friends.map(f => (
                       <div key={f.id} className="friends-card">
-                        <Link to={`/provider/${f.id}`} className="friends-card-link">
+                        <Link to={`/user/${f.id}`} className="friends-card-link">
                           <div className="friends-avatar">
                             {f.avatar_url ? (
                               <img src={f.avatar_url} alt="" />

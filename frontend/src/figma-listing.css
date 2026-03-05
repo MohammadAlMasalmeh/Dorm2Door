@@ -51,10 +51,12 @@
 }
 .figma-listing .listing-gallery-main {
   aspect-ratio: 1;
-  border-radius: 2px;
+  border-radius: 8px;
   background: #e2e2e2;
   background-size: cover;
   background-position: center;
+  border: 1px solid rgba(62, 78, 71, 0.2);
+  overflow: hidden;
 }
 .figma-listing .listing-gallery-placeholder {
   width: 100%;

@@ -18,6 +18,8 @@
 .figma-booking .booking-gallery-main,
 .figma-booking .booking-gallery-thumb {
   border-radius: 8px;
+  border: 1px solid rgba(62, 78, 71, 0.2);
+  overflow: hidden;
 }
 
 .figma-booking .booking-content {
