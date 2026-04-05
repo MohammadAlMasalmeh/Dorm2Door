@@ -203,11 +203,17 @@
   padding: 8px 32px;
   font-size: 16px;
   font-weight: 500;
+  font-family: inherit;
   color: var(--figma-black);
   background: transparent;
   text-align: center;
   text-decoration: none;
+  cursor: pointer;
   transition: background 0.2s, color 0.2s;
+}
+.figma-landing .figma-upcoming-card-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .figma-landing .figma-upcoming-card-cancel:hover {
   background: var(--figma-dark);
@@ -219,13 +225,16 @@
   padding: 8px 32px;
   font-size: 16px;
   font-weight: 500;
+  font-family: inherit;
   color: var(--figma-white);
   background: var(--figma-dark);
   text-align: center;
   text-decoration: none;
+  cursor: pointer;
   transition: opacity 0.2s;
 }
-.figma-landing .figma-upcoming-card-complete:hover { opacity: 0.9; }
+.figma-landing .figma-upcoming-card-complete:hover:not(:disabled) { opacity: 0.9; }
+.figma-landing .figma-upcoming-card-complete:disabled { opacity: 0.6; cursor: not-allowed; }
 .figma-landing .figma-upcoming-nav {
   display: flex;
   justify-content: center;

@@ -69,6 +69,19 @@ function ChatIcon() {
   )
 }
 
+function parseNotifData(data) {
+  if (data == null) return {}
+  if (typeof data === 'object' && !Array.isArray(data)) return data
+  if (typeof data === 'string') {
+    try {
+      return JSON.parse(data)
+    } catch {
+      return {}
+    }
+  }
+  return {}
+}
+
 function timeAgo(ts) {
   const diff = Date.now() - new Date(ts).getTime()
   const mins = Math.floor(diff / 60000)
@@ -149,6 +162,12 @@ export default function Nav({ session, userProfile }) {
     setUnreadCount(0)
   }
 
+  async function markNotificationRead(notificationId) {
+    await supabase.from('notifications').update({ read: true }).eq('id', notificationId)
+    setNotifications(prev => prev.map(n => (n.id === notificationId ? { ...n, read: true } : n)))
+    setUnreadCount(c => Math.max(0, c - 1))
+  }
+
   function submitGlobalSearch(e) {
     e.preventDefault()
     const q = globalSearch.trim()
@@ -197,6 +216,11 @@ export default function Nav({ session, userProfile }) {
           <span>Discover</span>
         </NavLink>
 
+        <NavLink to="/appointments" className={({ isActive }) => `nav-stack-item${isActive ? ' active' : ''}`}>
+          <CalendarIcon />
+          <span>Bookings</span>
+        </NavLink>
+
         <NavLink to="/messages" className={({ isActive }) => `nav-stack-item${isActive ? ' active' : ''}`}>
           <MessagesIcon />
           <span>Messages</span>
@@ -232,13 +256,59 @@ export default function Nav({ session, userProfile }) {
                     {notifications.length === 0 ? (
                       <p className="notif-empty">No notifications yet.</p>
                     ) : (
-                      notifications.map(n => (
-                        <div key={n.id} className={`notif-item${n.read ? '' : ' notif-unread'}`}>
-                          <div className="notif-item-title">{n.title}</div>
-                          <div className="notif-item-body">{n.body}</div>
-                          <div className="notif-item-time">{timeAgo(n.created_at)}</div>
-                        </div>
-                      ))
+                      notifications.map((n) => {
+                        const data = parseNotifData(n.data)
+                        const apptId = data.appointment_id
+                        let cta = null
+                        if (n.type === 'appointment_completed' && apptId) {
+                          cta = (
+                            <Link
+                              to={`/appointments?review=${apptId}`}
+                              className="notif-item-cta"
+                              onClick={() => {
+                                markNotificationRead(n.id)
+                                setShowNotifDropdown(false)
+                              }}
+                            >
+                              Leave a review
+                            </Link>
+                          )
+                        } else if (n.type === 'customer_rated') {
+                          cta = (
+                            <Link
+                              to="/profile"
+                              className="notif-item-cta"
+                              onClick={() => {
+                                markNotificationRead(n.id)
+                                setShowNotifDropdown(false)
+                              }}
+                            >
+                              View your rating
+                            </Link>
+                          )
+                        } else if (n.type === 'new_review' && session?.user?.id) {
+                          cta = (
+                            <Link
+                              to={`/provider/${session.user.id}`}
+                              className="notif-item-cta"
+                              onClick={() => {
+                                markNotificationRead(n.id)
+                                setShowNotifDropdown(false)
+                              }}
+                            >
+                              View on your listing
+                            </Link>
+                          )
+                        }
+                        return (
+                          <div key={n.id} className={`notif-item${n.read ? '' : ' notif-unread'}`}>
+                            <div className="notif-item-title">{n.title}</div>
+                            <div className="notif-item-body">{n.body}</div>
+                            {cta}
+                            <div className="notif-item-time">{timeAgo(n.created_at)}</div>
+                          </div>
+                        )
+                      })
                     )}
                   </div>
                 </div>

@@ -56,6 +56,16 @@ function UserMinusIcon() {
   )
 }
 
+function RatingStars({ value, size = '1rem' }) {
+  const n = Math.round(Number(value) || 0)
+  return (
+    <span className="profile-customer-rating-stars" style={{ fontSize: size }} aria-hidden>
+      {'★'.repeat(n)}
+      {'☆'.repeat(5 - n)}
+    </span>
+  )
+}
+
 export default function Profile({ session, userProfile, onUpdate }) {
   const [displayName, setDisplayName] = useState(userProfile?.display_name ?? '')
   const [bio, setBio] = useState(userProfile?.bio ?? '')
@@ -73,10 +83,27 @@ export default function Profile({ session, userProfile, onUpdate }) {
   const [sentRequests, setSentRequests] = useState([])
   const [showEditModal, setShowEditModal] = useState(false)
   const [tagsInput, setTagsInput] = useState('')
+  const [customerRating, setCustomerRating] = useState({ avg: null, count: 0 })
   const fileInputRef = useRef(null)
   const bannerInputRef = useRef(null)
 
   const uid = session?.user?.id
+
+  useEffect(() => {
+    if (!uid) return
+    supabase
+      .from('users')
+      .select('avg_customer_rating, customer_review_count')
+      .eq('id', uid)
+      .single()
+      .then(({ data }) => {
+        if (!data) return
+        setCustomerRating({
+          avg: data.avg_customer_rating != null ? Number(data.avg_customer_rating) : null,
+          count: Number(data.customer_review_count) || 0,
+        })
+      })
+  }, [uid, userProfile?.avg_customer_rating, userProfile?.customer_review_count])
 
   useEffect(() => {
     setDisplayName(userProfile?.display_name ?? '')
@@ -410,6 +437,20 @@ export default function Profile({ session, userProfile, onUpdate }) {
             <div className="profile-info-block">
               <h1 className="profile-display-name">{userProfile?.display_name || 'User'}</h1>
               <p className="profile-friends">{friendCount} {friendCount === 1 ? 'Friend' : 'Friends'}</p>
+              {customerRating.count > 0 && customerRating.avg != null ? (
+                <p className="profile-customer-rating" title="Average from providers after completed bookings">
+                  <span className="profile-customer-rating-label">Customer rating</span>
+                  <RatingStars value={customerRating.avg} />
+                  <span>{customerRating.avg.toFixed(1)}</span>
+                  <span className="profile-customer-rating-meta">
+                    ({customerRating.count} {customerRating.count === 1 ? 'rating' : 'ratings'} from providers)
+                  </span>
+                </p>
+              ) : (
+                <p className="profile-customer-rating-empty">
+                  Provider ratings will appear here after providers rate their experience with you on completed bookings.
+                </p>
+              )}
               <section className="profile-about">
                 <h2 className="profile-about-title">About</h2>
                 <p className="profile-about-text">{aboutText || 'Add a short bio in settings.'}</p>

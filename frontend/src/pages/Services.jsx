@@ -104,6 +104,12 @@ function priceStr(appt) {
   return `$${Number(p).toFixed(0)}`
 }
 
+function normalizeApptStatus(a) {
+  const s = a?.status
+  if (s == null || s === '') return ''
+  return String(s).trim().toLowerCase()
+}
+
 export default function Services({ session, userProfile }) {
   const isProvider = userProfile?.role === 'provider' || session?.user?.user_metadata?.role === 'provider'
   const [upcoming, setUpcoming] = useState([])
@@ -120,6 +126,7 @@ export default function Services({ session, userProfile }) {
   const [actionError, setActionError] = useState('')
   const [updatingId, setUpdatingId] = useState(null)
   const [weekLabel] = useState(() => formatWeekRangeLabel())
+  const [myLocation, setMyLocation] = useState('')
 
   const loadDashboard = useCallback(async () => {
     if (!session?.user?.id || !isProvider) {
@@ -142,7 +149,7 @@ export default function Services({ session, userProfile }) {
     ] = await Promise.all([
       supabase
         .from('appointments')
-        .select('id, scheduled_at, status, consumer_id, providers (location), services (name, price), service_options (name, price)')
+        .select('id, scheduled_at, status, consumer_id, services (name, price), service_options (name, price)')
         .eq('provider_id', uid)
         .order('scheduled_at', { ascending: true }),
       supabase
@@ -155,7 +162,7 @@ export default function Services({ session, userProfile }) {
         .eq('provider_id', uid)
         .gte('scheduled_at', weekAgoIso)
         .in('status', ['confirmed', 'completed']),
-      supabase.from('providers').select('avg_rating').eq('id', uid).maybeSingle(),
+      supabase.from('providers').select('avg_rating, review_count, location').eq('id', uid).maybeSingle(),
       supabase
         .from('appointments')
         .select('id, service_id, service_options (price), services (price)')
@@ -164,26 +171,38 @@ export default function Services({ session, userProfile }) {
       supabase.from('reviews').select('rating, appointment_id').eq('provider_id', uid),
     ])
 
-    const list = apptRes.data || []
-    const up = list.filter(a => ['pending', 'confirmed'].includes(a.status) && a.scheduled_at >= now)
-    const pend = list.filter(a => a.status === 'pending')
-    setUpcoming(up)
-    setPending(pend)
+    setActionError('')
+    if (apptRes.error) {
+      setActionError(apptRes.error.message || 'Could not load appointments')
+      setUpcoming([])
+      setPending([])
+    } else {
+      const list = apptRes.data || []
+      const pend = list.filter((a) => normalizeApptStatus(a) === 'pending')
+      const up = list.filter(
+        (a) => normalizeApptStatus(a) === 'confirmed' && a.scheduled_at >= now
+      )
+      setPending(pend)
+      setUpcoming(up)
+    }
+
     setMyServices(svcRes.data || [])
 
     const statsList = statsRes.data || []
     let revenue = 0
-    statsList.forEach(a => {
+    statsList.forEach((a) => {
       const p = a.service_options?.price != null ? a.service_options.price : a.services?.price
       if (p != null) revenue += Number(p)
     })
     setStats({ servicesProvided: statsList.length, revenue })
 
-    const ar = providerRes.data?.avg_rating
+    const pr = providerRes.data
+    setMyLocation((pr?.location || '').trim())
+    const ar = pr?.avg_rating
     setAvgReview(ar != null && Number(ar) > 0 ? Number(ar) : null)
 
     const metrics = {}
-    ;(completedRes.data || []).forEach(a => {
+    ;(completedRes.data || []).forEach((a) => {
       const sid = a.service_id
       if (!sid) return
       if (!metrics[sid]) metrics[sid] = { revenue: 0, count: 0 }
@@ -194,15 +213,15 @@ export default function Services({ session, userProfile }) {
     setServiceMetrics(metrics)
 
     const revRows = reviewsListRes.data || []
-    const apptIds = [...new Set(revRows.map(r => r.appointment_id).filter(Boolean))]
-    let apptToService = {}
+    const apptIds = [...new Set(revRows.map((r) => r.appointment_id).filter(Boolean))]
+    const apptToService = {}
     if (apptIds.length) {
       const { data: apRows } = await supabase.from('appointments').select('id, service_id').in('id', apptIds)
-      ;(apRows || []).forEach(a => { apptToService[a.id] = a.service_id })
+      ;(apRows || []).forEach((a) => { apptToService[a.id] = a.service_id })
     }
     const ratings = {}
     const reviewCounts = {}
-    revRows.forEach(r => {
+    revRows.forEach((r) => {
       const sid = apptToService[r.appointment_id]
       if (!sid) return
       if (!ratings[sid]) ratings[sid] = []
@@ -210,7 +229,7 @@ export default function Services({ session, userProfile }) {
       reviewCounts[sid] = (reviewCounts[sid] || 0) + 1
     })
     const avgByService = {}
-    Object.keys(ratings).forEach(sid => {
+    Object.keys(ratings).forEach((sid) => {
       const arr = ratings[sid]
       avgByService[sid] = arr.reduce((s, x) => s + x, 0) / arr.length
     })
@@ -230,20 +249,25 @@ export default function Services({ session, userProfile }) {
   }, [session?.user?.id, loadDashboard])
 
   useEffect(() => {
-    const ids = [...upcoming, ...pending].map(a => a.consumer_id).filter(Boolean)
+    const ids = [...upcoming, ...pending].map((a) => a.consumer_id).filter(Boolean)
     if (ids.length === 0) return
     const uniqueIds = [...new Set(ids)]
     supabase.from('users').select('id, display_name, avatar_url').in('id', uniqueIds).then(({ data }) => {
       const map = {}
-      ;(data || []).forEach(u => { map[u.id] = u })
+      ;(data || []).forEach((u) => { map[u.id] = u })
       setConsumerNames(map)
     })
   }, [upcoming, pending])
 
   async function updateAppointmentStatus(id, status) {
+    if (!session?.user?.id) return
     setUpdatingId(id)
     setActionError('')
-    const { error } = await supabase.from('appointments').update({ status }).eq('id', id)
+    const { error } = await supabase
+      .from('appointments')
+      .update({ status })
+      .eq('id', id)
+      .eq('provider_id', session.user.id)
     setUpdatingId(null)
     if (error) {
       setActionError(error.message || 'Something went wrong. Try again.')
@@ -263,7 +287,7 @@ export default function Services({ session, userProfile }) {
     const avatar = consumerAvatar(appt)
     const title = serviceLine(appt)
     const price = priceStr(appt)
-    const loc = appt.providers?.location?.trim() || 'TBD'
+    const loc = myLocation || 'TBD'
     const busy = updatingId === appt.id
 
     return (
@@ -369,6 +393,14 @@ export default function Services({ session, userProfile }) {
 
         <section className="services-section services-section-appointments">
           <h1 className="services-heading">Appointments</h1>
+          <p
+            className="services-dashboard-hint"
+            style={{ fontSize: 15, color: FIGMA.text, opacity: 0.75, margin: '0 0 12px', maxWidth: 640 }}
+          >
+            Accept requests in <strong>Pending</strong> or on{' '}
+            <Link to="/appointments" style={{ color: FIGMA.dark, fontWeight: 600 }}>Bookings</Link>
+            . Mark visits complete there so customers can leave reviews.
+          </p>
           {actionError ? <p className="services-action-error" role="alert">{actionError}</p> : null}
           <div className="services-appt-tabs">
             <button
@@ -392,13 +424,13 @@ export default function Services({ session, userProfile }) {
             {!loading && apptTab === 'upcoming' && upcoming.length === 0 && (
               <p className="services-panel-empty-dark">No upcoming appointments</p>
             )}
-            {!loading && apptTab === 'upcoming' && upcoming.map(appt => (
+            {!loading && apptTab === 'upcoming' && upcoming.map((appt) => (
               <AppointmentFigmaCard key={appt.id} appt={appt} mode="upcoming" />
             ))}
             {!loading && apptTab === 'pending' && pending.length === 0 && (
-              <p className="services-panel-empty-dark">No pending requests</p>
+              <p className="services-panel-empty-dark">No pending requests. If you have booking notifications, open Bookings or refresh.</p>
             )}
-            {!loading && apptTab === 'pending' && pending.map(appt => (
+            {!loading && apptTab === 'pending' && pending.map((appt) => (
               <AppointmentFigmaCard key={appt.id} appt={appt} mode="pending" />
             ))}
           </div>
@@ -413,7 +445,7 @@ export default function Services({ session, userProfile }) {
             {isProvider && myServices.length === 0 && !loading && (
               <p className="services-empty-msg">No services yet. <Link to="/my-services">Add your first service</Link>.</p>
             )}
-            {isProvider && myServices.map(svc => {
+            {isProvider && myServices.map((svc) => {
               const m = serviceMetrics[svc.id] || { revenue: 0, count: 0 }
               const rAvg = serviceRatings[svc.id]
               const nRev = serviceReviewCounts[svc.id] || 0
@@ -430,7 +462,7 @@ export default function Services({ session, userProfile }) {
                     <p className="services-your-card-dark-name">{svc.name}</p>
                     {(svc.service_options && svc.service_options.length > 0) && (
                       <p className="services-your-card-dark-options">
-                        {(svc.service_options || []).map(opt => `${opt.name} $${Number(opt.price).toFixed(0)}`).join(' · ')}
+                        {(svc.service_options || []).map((opt) => `${opt.name} $${Number(opt.price).toFixed(0)}`).join(' · ')}
                       </p>
                     )}
                     <div className="services-your-card-dark-rating">
@@ -446,14 +478,14 @@ export default function Services({ session, userProfile }) {
                     to={`/my-services?edit=${svc.id}`}
                     className="services-your-card-dark-edit"
                     aria-label={`Edit ${svc.name}`}
-                    onClick={e => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <PencilIcon />
                   </Link>
                   <Link
                     to={`/my-services?edit=${svc.id}`}
                     className="services-your-card-dark-more"
-                    onClick={e => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
                   >
                     More Details
                   </Link>

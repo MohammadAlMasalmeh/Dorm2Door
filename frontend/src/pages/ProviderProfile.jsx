@@ -15,19 +15,57 @@ const thumbPlaceholderSvg = (
   </svg>
 )
 
+function formatReviewDate(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 export default function ProviderProfile({ session }) {
   const { id } = useParams()
   const navigate = useNavigate()
   const [provider, setProvider] = useState(null)
   const [reviews, setReviews] = useState([])
+  const [reviewsError, setReviewsError] = useState('')
   const [loading, setLoading] = useState(true)
   const [selectedImage, setSelectedImage] = useState(0)
   const [friendStatus, setFriendStatus] = useState('none')
   const [friendActionLoading, setFriendActionLoading] = useState(false)
+  const [reviewsExpanded, setReviewsExpanded] = useState(false)
 
   useEffect(() => {
-    fetchProvider()
-    fetchReviews()
+    setReviewsExpanded(false)
+  }, [id])
+
+  useEffect(() => {
+    if (!id) return
+    let cancelled = false
+    setLoading(true)
+    setReviewsError('')
+    Promise.all([
+      supabase
+        .from('providers')
+        .select('*, users (display_name, email, avatar_url), services (*, service_options (*))')
+        .eq('id', id)
+        .single(),
+      supabase
+        .from('reviews')
+        .select('id, rating, comment, created_at, consumer_id, users!reviews_consumer_id_fkey(display_name, avatar_url)')
+        .eq('provider_id', id)
+        .order('created_at', { ascending: false }),
+    ]).then(([provRes, revRes]) => {
+      if (cancelled) return
+      if (revRes.error) {
+        setReviewsError(revRes.error.message || 'Could not load reviews')
+        setReviews([])
+      } else {
+        setReviews(revRes.data || [])
+      }
+      setProvider(provRes.data)
+      setLoading(false)
+    })
+    return () => { cancelled = true }
   }, [id])
 
   useEffect(() => {
@@ -75,25 +113,6 @@ export default function ProviderProfile({ session }) {
     if (convId) navigate(`/messages/${convId}`)
   }
 
-  async function fetchProvider() {
-    const { data } = await supabase
-      .from('providers')
-      .select('*, users (display_name, email, avatar_url), services (*, service_options (*))')
-      .eq('id', id)
-      .single()
-    setProvider(data)
-    setLoading(false)
-  }
-
-  async function fetchReviews() {
-    const { data } = await supabase
-      .from('reviews')
-      .select('rating, comment, created_at, users!reviews_consumer_id_fkey (display_name, avatar_url)')
-      .eq('provider_id', id)
-      .order('created_at', { ascending: false })
-    setReviews(data || [])
-  }
-
   if (loading) return <div className="loading-wrap"><div className="spinner" /></div>
   if (!provider) {
     if (session?.user?.id === id) {
@@ -121,8 +140,15 @@ export default function ProviderProfile({ session }) {
   ))
   const mainImage = portfolioImages[selectedImage] || portfolioImages[0]
   const reviewCount = reviews.length
-  const avgRating = provider.avg_rating ? Number(provider.avg_rating).toFixed(1) : null
+  const avgFromReviews = reviewCount > 0
+    ? reviews.reduce((sum, r) => sum + (Number(r.rating) || 0), 0) / reviewCount
+    : null
+  const avgNumeric = avgFromReviews != null
+    ? avgFromReviews
+    : (provider.avg_rating != null && Number(provider.avg_rating) > 0 ? Number(provider.avg_rating) : null)
+  const avgRating = avgNumeric != null ? avgNumeric.toFixed(1) : null
   const tags = (provider.tags || []).slice(0, 3)
+  const visibleReviews = reviewsExpanded ? reviews : reviews.slice(0, 3)
 
   const ratingBuckets = [5, 4, 3, 2, 1].map(star => ({
     star,
@@ -273,8 +299,8 @@ export default function ProviderProfile({ session }) {
             <div className="listing-reviews-summary">
               <div className="listing-reviews-score">
                 <span className="listing-reviews-number">{avgRating || '—'}</span>
-                <Stars value={provider.avg_rating} size="1rem" />
-                <span className="listing-reviews-count">{reviewCount} Reviews</span>
+                <Stars value={avgNumeric} size="1rem" />
+                <span className="listing-reviews-count">{reviewCount} {reviewCount === 1 ? 'Review' : 'Reviews'}</span>
               </div>
               <div className="listing-reviews-bars">
                 {ratingBuckets.map(b => (
@@ -290,10 +316,16 @@ export default function ProviderProfile({ session }) {
                 ))}
               </div>
             </div>
+            {reviewsError && (
+              <p className="listing-empty" style={{ marginTop: 12 }} role="alert">{reviewsError}</p>
+            )}
+            {reviewCount === 0 && !reviewsError && (
+              <p className="listing-empty" style={{ marginTop: 12 }}>No reviews yet. Book a service and leave the first one after your appointment.</p>
+            )}
             {reviewCount > 0 && (
               <div className="listing-reviews-list">
-                {reviews.slice(0, 3).map((r, i) => (
-                  <div key={i} className="listing-review-card">
+                {visibleReviews.map((r) => (
+                  <div key={r.id} className="listing-review-card">
                     <div className="listing-review-header">
                       {r.users?.avatar_url ? (
                         <img src={r.users.avatar_url} alt="" className="listing-review-avatar" />
@@ -302,10 +334,25 @@ export default function ProviderProfile({ session }) {
                       )}
                       <span className="listing-review-name">{r.users?.display_name || 'Anonymous'}</span>
                       <Stars value={r.rating} size="0.85rem" />
+                      {r.created_at && (
+                        <span className="listing-review-date" style={{ marginLeft: 'auto', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          {formatReviewDate(r.created_at)}
+                        </span>
+                      )}
                     </div>
                     {r.comment && <p className="listing-review-comment">{r.comment}</p>}
                   </div>
                 ))}
+                {reviewCount > 3 && (
+                  <button
+                    type="button"
+                    className="listing-service-select"
+                    style={{ marginTop: 12, alignSelf: 'flex-start', border: 'none', cursor: 'pointer', background: 'transparent', padding: 0 }}
+                    onClick={() => setReviewsExpanded(e => !e)}
+                  >
+                    {reviewsExpanded ? 'Show fewer' : `Show all ${reviewCount} reviews`}
+                  </button>
+                )}
               </div>
             )}
           </div>

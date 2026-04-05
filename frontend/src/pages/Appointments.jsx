@@ -1,6 +1,21 @@
 import { useState, useEffect } from 'react'
-import { Link, NavLink } from 'react-router-dom'
+import { Link, NavLink, useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
+
+/** Supabase may embed one-to-one `reviews` as an object or as a single-element array */
+function appointmentHasConsumerReview(appt) {
+  const r = appt?.reviews
+  if (r == null) return false
+  if (Array.isArray(r)) return r.length > 0
+  if (typeof r === 'object' && r.id) return true
+  return false
+}
+
+function normalizeApptStatus(appt) {
+  const s = appt?.status
+  if (s == null || s === '') return ''
+  return String(s).trim().toLowerCase()
+}
 
 function ReviewModal({ appt, onClose, onSubmit }) {
   const [rating, setRating] = useState(5)
@@ -11,9 +26,26 @@ function ReviewModal({ appt, onClose, onSubmit }) {
   async function handleSubmit(e) {
     e.preventDefault()
     setError(''); setLoading(true)
+    const { data: row, error: statusErr } = await supabase
+      .from('appointments')
+      .select('status, provider_id')
+      .eq('id', appt.id)
+      .eq('consumer_id', appt.consumer_id)
+      .single()
+    if (statusErr || !row) {
+      setError(statusErr?.message || 'Could not verify this booking.')
+      setLoading(false)
+      return
+    }
+    if (String(row.status || '').trim().toLowerCase() !== 'completed') {
+      setError('You can only leave a review after the appointment is marked complete.')
+      setLoading(false)
+      return
+    }
+    const providerId = appt.providers?.id ?? row.provider_id
     const { error } = await supabase.from('reviews').insert({
       appointment_id: appt.id,
-      provider_id: appt.providers?.id,
+      provider_id: providerId,
       consumer_id: appt.consumer_id,
       rating,
       comment,
@@ -117,7 +149,8 @@ function CustomerReviewModal({ appt, session, onClose, onSubmit }) {
   )
 }
 
-function ApptCard({ appt, variant, onCancel, onAccept, onDecline, onReview, onComplete, onRateCustomer }) {
+function ApptCard({ appt, variant, onCancel, onAccept, onDecline, onReview, onComplete, onConsumerComplete, onRateCustomer }) {
+  const st = normalizeApptStatus(appt)
   const d = new Date(appt.scheduled_at)
   const dateStr = d.toLocaleString([], { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
   const providerName = appt.providers?.users?.display_name || appt.users?.display_name || '—'
@@ -153,30 +186,64 @@ function ApptCard({ appt, variant, onCancel, onAccept, onDecline, onReview, onCo
         </div>
         <div className="bookings-card-meta">
           <span className="bookings-card-icon bookings-card-icon-pin" aria-hidden>📍</span>
-          <span className="bookings-card-meta-text">Location TBD</span>
+          <span className="bookings-card-meta-text">
+            {variant === 'pending'
+              ? 'Location TBD'
+              : (appt.providers?.location?.trim() || 'Location TBD')}
+          </span>
         </div>
       </div>
       <div className="bookings-card-actions">
-        {variant === 'upcoming' && (appt.status === 'pending' || appt.status === 'confirmed') && (
-          <button type="button" className="bookings-card-btn bookings-card-btn-outline" onClick={() => onCancel(appt.id)}>
-            Cancel Request
+        {variant === 'upcoming' && st === 'pending' && (
+          <>
+            <p className="bookings-card-hint" style={{ width: '100%', margin: 0, fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+              Waiting for the provider to accept. You can cancel if plans change.
+            </p>
+            <button type="button" className="bookings-card-btn bookings-card-btn-outline" onClick={() => onCancel(appt.id)}>
+              Cancel request
+            </button>
+          </>
+        )}
+        {variant === 'upcoming' && st === 'confirmed' && (
+          <>
+            <p className="bookings-card-hint" style={{ width: '100%', margin: 0, fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+              After your visit, mark complete — then you can leave a review for your provider.
+            </p>
+            <button type="button" className="bookings-card-btn bookings-card-btn-outline" onClick={() => onCancel(appt.id)}>
+              Cancel
+            </button>
+            {onConsumerComplete && (
+              <button type="button" className="bookings-card-btn bookings-card-btn-confirm" onClick={() => onConsumerComplete(appt.id)}>
+                Mark as complete
+              </button>
+            )}
+          </>
+        )}
+        {variant === 'upcoming' && st !== 'pending' && st !== 'confirmed' && st !== '' && (
+          <p className="bookings-card-hint" style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+            Status: {appt.status || 'unknown'}. Open <Link to="/appointments">Bookings</Link> after refreshing if this looks wrong.
+          </p>
+        )}
+        {variant === 'completed' && st === 'completed' && !appointmentHasConsumerReview(appt) && onReview && (
+          <button type="button" className="bookings-card-btn bookings-card-btn-confirm" onClick={() => onReview(appt)}>
+            Leave a review
           </button>
         )}
-        {variant === 'upcoming' && appt.status === 'completed' && !appt.reviews?.length && onReview && (
-          <button type="button" className="bookings-card-btn bookings-card-btn-outline" onClick={() => onReview(appt)}>
-            Write review
-          </button>
+        {variant === 'completed' && st === 'completed' && appointmentHasConsumerReview(appt) && (
+          <span className="bookings-card-reviewed" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            Thanks — you left a review
+          </span>
         )}
-        {variant === 'pending' && appt.status === 'pending' && (
+        {variant === 'pending' && st === 'pending' && (
           <>
             <button type="button" className="bookings-card-btn bookings-card-btn-accept" onClick={() => onAccept(appt.id)}>Accept</button>
             <button type="button" className="bookings-card-btn bookings-card-btn-decline" onClick={() => onDecline(appt.id)}>Decline</button>
           </>
         )}
-        {variant === 'pending' && appt.status === 'confirmed' && onComplete && (
+        {variant === 'pending' && st === 'confirmed' && onComplete && (
           <button type="button" className="bookings-card-btn bookings-card-btn-confirm" onClick={() => onComplete(appt.id)}>Mark complete</button>
         )}
-        {variant === 'pending' && appt.status === 'completed' && !(appt.customer_reviews?.length) && onRateCustomer && (
+        {variant === 'pending' && st === 'completed' && !(appt.customer_reviews?.length) && onRateCustomer && (
           <button type="button" className="bookings-card-btn bookings-card-btn-outline" onClick={() => onRateCustomer(appt)}>
             Rate customer
           </button>
@@ -187,6 +254,7 @@ function ApptCard({ appt, variant, onCancel, onAccept, onDecline, onReview, onCo
 }
 
 export default function Appointments({ session, userProfile }) {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [bookings, setBookings] = useState([])
   const [incoming, setIncoming] = useState([])
   const [loading, setLoading] = useState(true)
@@ -196,14 +264,32 @@ export default function Appointments({ session, userProfile }) {
 
   const isProvider = userProfile?.role === 'provider' || session?.user?.user_metadata?.role === 'provider'
 
-  useEffect(() => { fetchAll() }, [])
+  useEffect(() => {
+    if (!session?.user?.id) return
+    fetchAll()
+  }, [session?.user?.id, isProvider])
+
+  const reviewFromUrl = searchParams.get('review')
+  useEffect(() => {
+    if (loading || !reviewFromUrl) return
+    const match = bookings.find((a) => a.id === reviewFromUrl)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.delete('review')
+      return next
+    }, { replace: true })
+    if (!match) return
+    if (normalizeApptStatus(match) !== 'completed' || appointmentHasConsumerReview(match)) return
+    setReviewAppt(match)
+  }, [loading, bookings, reviewFromUrl, setSearchParams])
 
   async function fetchAll() {
+    if (!session?.user?.id) return
     setLoading(true)
     const [{ data: b }, { data: i }] = await Promise.all([
       supabase
         .from('appointments')
-        .select('id, consumer_id, status, scheduled_at, providers (id, users (display_name)), services (name, price), service_options (name, price), reviews (id)')
+        .select('id, consumer_id, provider_id, status, scheduled_at, providers (id, users (display_name)), services (name, price), service_options (name, price), reviews (id)')
         .eq('consumer_id', session.user.id)
         .order('scheduled_at', { ascending: false }),
       isProvider
@@ -229,10 +315,14 @@ export default function Appointments({ session, userProfile }) {
     fetchAll()
   }
 
-  const upcoming = bookings.filter(a => a.status !== 'cancelled')
-  const pending = incoming.filter(a => a.status === 'pending')
-  const confirmedIncoming = incoming.filter(a => a.status === 'confirmed')
-  const completedIncoming = incoming.filter(a => a.status === 'completed')
+  const consumerActive = bookings.filter(a => ['pending', 'confirmed'].includes(normalizeApptStatus(a)))
+  const consumerCompleted = bookings.filter(a => normalizeApptStatus(a) === 'completed')
+  const consumerCancelled = bookings.filter(a => normalizeApptStatus(a) === 'cancelled')
+  const needsConsumerReview = consumerCompleted.filter(a => !appointmentHasConsumerReview(a))
+
+  const pending = incoming.filter(a => normalizeApptStatus(a) === 'pending')
+  const confirmedIncoming = incoming.filter(a => normalizeApptStatus(a) === 'confirmed')
+  const completedIncoming = incoming.filter(a => normalizeApptStatus(a) === 'completed')
 
   if (loading) return <div className="loading-wrap"><div className="spinner" /></div>
 
@@ -274,6 +364,11 @@ export default function Appointments({ session, userProfile }) {
       <div className="bookings-main">
         <h1 className="bookings-page-title">Dashboard</h1>
         <p className="bookings-page-subtitle">Your appointments and activity</p>
+        {!isProvider && (
+          <p className="bookings-page-subtitle" style={{ marginTop: -12, marginBottom: 8, fontSize: '0.9rem' }}>
+            After a confirmed visit, tap <strong>Mark as complete</strong>, then leave a review under <strong>Rate your experience</strong>.
+          </p>
+        )}
         {actionError && (
           <div className="alert alert-error" style={{ marginBottom: 16 }} role="alert">
             {actionError}
@@ -281,22 +376,69 @@ export default function Appointments({ session, userProfile }) {
         )}
         <div className="bookings-columns">
           <section className="bookings-col">
+            {needsConsumerReview.length > 0 && (
+              <>
+                <h3 className="bookings-col-title">Rate your experience</h3>
+                <p className="bookings-col-hint" style={{ margin: '-8px 0 16px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                  These visits are complete — share feedback for your provider.
+                </p>
+                <div className="bookings-cards" style={{ marginBottom: 28 }}>
+                  {needsConsumerReview.map(appt => (
+                    <ApptCard
+                      key={appt.id}
+                      appt={appt}
+                      variant="completed"
+                      onReview={setReviewAppt}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
             <h3 className="bookings-col-title">Upcoming</h3>
             <div className="bookings-cards">
-              {upcoming.length === 0 ? (
+              {consumerActive.length === 0 ? (
                 <p className="bookings-empty">No upcoming appointments.</p>
               ) : (
-                upcoming.map(appt => (
+                consumerActive.map(appt => (
                   <ApptCard
                     key={appt.id}
                     appt={appt}
                     variant="upcoming"
                     onCancel={(id) => updateStatus(id, 'cancelled')}
+                    onConsumerComplete={(id) => updateStatus(id, 'completed')}
                     onReview={setReviewAppt}
                   />
                 ))
               )}
             </div>
+
+            {consumerCompleted.length > needsConsumerReview.length && (
+              <>
+                <h3 className="bookings-col-title" style={{ marginTop: 28 }}>Past visits</h3>
+                <div className="bookings-cards">
+                  {consumerCompleted.filter(a => appointmentHasConsumerReview(a)).map(appt => (
+                    <ApptCard
+                      key={appt.id}
+                      appt={appt}
+                      variant="completed"
+                      onReview={setReviewAppt}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {consumerCancelled.length > 0 && (
+              <>
+                <h3 className="bookings-col-title" style={{ marginTop: 28 }}>Cancelled</h3>
+                <div className="bookings-cards">
+                  {consumerCancelled.map(appt => (
+                    <ApptCard key={appt.id} appt={appt} variant="cancelled" />
+                  ))}
+                </div>
+              </>
+            )}
           </section>
           {isProvider && (
             <section className="bookings-col">

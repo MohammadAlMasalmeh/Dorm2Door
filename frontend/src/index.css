@@ -1570,8 +1570,37 @@ textarea.form-input { resize: vertical; min-height: 84px; }
   font-size: 16px;
   color: #1B1B1B;
   opacity: 0.5;
-  margin-bottom: 28px;
+  margin-bottom: 12px;
   line-height: normal;
+}
+
+.profile-customer-rating {
+  font-size: 15px;
+  color: #1B1B1B;
+  margin: 0 0 22px;
+  line-height: 1.45;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.profile-customer-rating-label {
+  font-weight: 600;
+  opacity: 0.85;
+}
+.profile-customer-rating-stars {
+  letter-spacing: 1px;
+  color: #c67c4e;
+}
+.profile-customer-rating-meta {
+  opacity: 0.55;
+  font-size: 14px;
+}
+.profile-customer-rating-empty {
+  opacity: 0.5;
+  font-size: 14px;
+  margin: 0 0 22px;
+  line-height: 1.45;
 }
 
 .profile-about-title {
@@ -3699,6 +3728,17 @@ textarea.form-input {
   font-size: 0.72rem;
   color: var(--text-muted);
   margin-top: 4px;
+}
+.notif-item-cta {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--primary, #2d5a4a);
+  text-decoration: none;
+}
+.notif-item-cta:hover {
+  text-decoration: underline;
 }
 .notif-empty {
   padding: 24px 16px;

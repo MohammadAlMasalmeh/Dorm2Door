@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 
@@ -34,26 +34,49 @@ export default function Home({ session }) {
   const [sortBy, setSortBy] = useState('rating')
   const [upcomingAppointments, setUpcomingAppointments] = useState([])
   const [popularSearches, setPopularSearches] = useState([])
+  const [homeApptBusy, setHomeApptBusy] = useState(null)
+  const [homeApptError, setHomeApptError] = useState('')
 
   useEffect(() => { setSearchInput(queryFromUrl) }, [queryFromUrl])
   useEffect(() => { fetchProviders() }, [activeTags, sortBy])
 
-  useEffect(() => {
-    if (!session?.user?.id) { setUpcomingAppointments([]); return }
-    const now = new Date().toISOString()
-    async function fetchUpcoming() {
-      const { data } = await supabase
-        .from('appointments')
-        .select('id, scheduled_at, status, providers (id, location, users (display_name)), services (name, price), service_options (name, price)')
-        .eq('consumer_id', session.user.id)
-        .in('status', ['pending', 'confirmed'])
-        .gte('scheduled_at', now)
-        .order('scheduled_at', { ascending: true })
-        .limit(5)
-      setUpcomingAppointments(data || [])
+  const fetchUpcomingAppointments = useCallback(async () => {
+    if (!session?.user?.id) {
+      setUpcomingAppointments([])
+      return
     }
-    fetchUpcoming()
+    const now = new Date().toISOString()
+    const { data } = await supabase
+      .from('appointments')
+      .select('id, scheduled_at, status, providers (id, location, users (display_name)), services (name, price), service_options (name, price)')
+      .eq('consumer_id', session.user.id)
+      .in('status', ['pending', 'confirmed'])
+      .gte('scheduled_at', now)
+      .order('scheduled_at', { ascending: true })
+      .limit(5)
+    setUpcomingAppointments(data || [])
   }, [session?.user?.id])
+
+  useEffect(() => {
+    fetchUpcomingAppointments()
+  }, [fetchUpcomingAppointments])
+
+  async function consumerAppointmentUpdate(apptId, nextStatus) {
+    if (!session?.user?.id) return
+    setHomeApptError('')
+    setHomeApptBusy(apptId)
+    const { error } = await supabase
+      .from('appointments')
+      .update({ status: nextStatus })
+      .eq('id', apptId)
+      .eq('consumer_id', session.user.id)
+    setHomeApptBusy(null)
+    if (error) {
+      setHomeApptError(error.message || 'Update failed')
+      return
+    }
+    await fetchUpcomingAppointments()
+  }
 
   useEffect(() => {
     Promise.all([
@@ -75,7 +98,7 @@ export default function Home({ session }) {
     setLoading(true)
     let q = supabase
       .from('providers')
-      .select('id, bio, tags, avg_rating, location, users (display_name, avatar_url), services (image_url, price, name, service_options (price))')
+      .select('id, bio, tags, avg_rating, review_count, location, users (display_name, avatar_url), services (image_url, price, name, service_options (price))')
     if (activeTags.size > 0) q = q.overlaps('tags', [...activeTags])
     if (sortBy === 'rating') q = q.order('avg_rating', { ascending: false })
     else q = q.order('id', { ascending: false })
@@ -164,7 +187,11 @@ export default function Home({ session }) {
           </div>
           <div className="figma-service-card-rating">
             <Stars value={p.avg_rating} />
-            <span>{p.avg_rating ? `${Number(p.avg_rating).toFixed(1)} (10)` : 'New'}</span>
+            <span>
+              {(p.review_count ?? 0) > 0 && p.avg_rating != null
+                ? `${Number(p.avg_rating).toFixed(1)} (${p.review_count})`
+                : 'New'}
+            </span>
           </div>
           <div className="figma-service-card-meta">
             <span className="figma-service-card-distance">{p.location ? `${p.location}` : '.5 mi away'}</span>
@@ -209,23 +236,31 @@ export default function Home({ session }) {
       <div className="figma-upcoming-wrap">
         <div className="figma-upcoming-box">
           <h2 className="figma-upcoming-title">Upcoming Appointments</h2>
+          {homeApptError && (
+            <p className="figma-empty" style={{ marginBottom: 12 }} role="alert">{homeApptError}</p>
+          )}
           {upcomingAppointments.length === 0 ? (
             <p className="figma-empty">No upcoming appointments. <Link to="/discover">Find a service</Link></p>
           ) : (
             <div className="figma-upcoming-cards">
-              {upcomingAppointments.map((appt, idx) => {
+              {upcomingAppointments.map((appt) => {
                 const d = new Date(appt.scheduled_at)
                 const dateStr = d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })
                 const timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
                 const providerName = appt.providers?.users?.display_name || 'John Guy'
-                const serviceName = appt.services?.name || 'Math Tutoring'
-                const price = appt.services?.price != null ? `$${Number(appt.services.price).toFixed(0)}` : '$30'
-                const isFirst = idx === 0
+                const opt = appt.service_options
+                const serviceName = opt
+                  ? `${appt.services?.name || ''} · ${opt.name}`.trim() || appt.services?.name || 'Service'
+                  : (appt.services?.name || 'Service')
+                const priceVal = opt?.price != null ? opt.price : appt.services?.price
+                const price = priceVal != null ? `$${Number(priceVal).toFixed(0)}` : ''
+                const st = (appt.status || '').toString().trim().toLowerCase()
+                const busy = homeApptBusy === appt.id
                 return (
                   <div key={appt.id} className="figma-upcoming-card">
                     <div className="figma-upcoming-card-top">
                       <span className="figma-upcoming-card-service">{serviceName}</span>
-                      <span className="figma-upcoming-card-price">{price}</span>
+                      {price && <span className="figma-upcoming-card-price">{price}</span>}
                     </div>
                     <div className="figma-upcoming-card-meta">
                       <span>
@@ -241,9 +276,30 @@ export default function Home({ session }) {
                         {appt.providers?.location?.trim() || 'TBD'}
                       </span>
                     </div>
+                    <p className="figma-upcoming-card-hint" style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--figma-black)', opacity: 0.65, lineHeight: 1.4 }}>
+                      {st === 'pending'
+                        ? 'Waiting for the provider to accept. After they confirm and you meet, mark the booking complete — then leave a review under Bookings.'
+                        : 'When the visit is finished, mark complete. You’ll be prompted to rate your provider on the Bookings page.'}
+                    </p>
                     <div className="figma-upcoming-card-actions">
-                      <Link to="/appointments" className="figma-upcoming-card-cancel">{isFirst ? 'Cancel Appointment' : 'Cancel Request'}</Link>
-                      {isFirst && <Link to="/appointments" className="figma-upcoming-card-complete">Complete</Link>}
+                      <button
+                        type="button"
+                        className="figma-upcoming-card-cancel"
+                        disabled={busy}
+                        onClick={() => consumerAppointmentUpdate(appt.id, 'cancelled')}
+                      >
+                        {st === 'pending' ? 'Cancel request' : 'Cancel booking'}
+                      </button>
+                      {st === 'confirmed' && (
+                        <button
+                          type="button"
+                          className="figma-upcoming-card-complete"
+                          disabled={busy}
+                          onClick={() => consumerAppointmentUpdate(appt.id, 'completed')}
+                        >
+                          {busy ? 'Saving…' : 'Mark complete'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 )
