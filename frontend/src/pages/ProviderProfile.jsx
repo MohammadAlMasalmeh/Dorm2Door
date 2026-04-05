@@ -46,7 +46,7 @@ export default function ProviderProfile({ session }) {
     Promise.all([
       supabase
         .from('providers')
-        .select('*, users (display_name, email, avatar_url), services (*, service_options (*))')
+        .select('*, users (display_name, email, avatar_url, avg_customer_rating, customer_review_count), services (*, service_options (*))')
         .eq('id', id)
         .single(),
       supabase
@@ -147,6 +147,12 @@ export default function ProviderProfile({ session }) {
     ? avgFromReviews
     : (provider.avg_rating != null && Number(provider.avg_rating) > 0 ? Number(provider.avg_rating) : null)
   const avgRating = avgNumeric != null ? avgNumeric.toFixed(1) : null
+  const u = provider.users
+  const customerReviewCount = u?.customer_review_count ?? 0
+  const customerAvg =
+    u?.avg_customer_rating != null && Number(u.avg_customer_rating) > 0
+      ? Number(u.avg_customer_rating).toFixed(1)
+      : null
   const tags = (provider.tags || []).slice(0, 3)
   const visibleReviews = reviewsExpanded ? reviews : reviews.slice(0, 3)
 
@@ -245,6 +251,20 @@ export default function ProviderProfile({ session }) {
             <span className="listing-provider-location">
               {provider.location} &middot; ~30min
             </span>
+          )}
+        </div>
+        <div className="listing-customer-rating" aria-label="Customer rating">
+          <span className="listing-customer-rating-label">Customer rating</span>
+          {customerReviewCount > 0 && customerAvg ? (
+            <>
+              <Stars value={u?.avg_customer_rating} size="0.85rem" />
+              <span className="listing-customer-rating-score">{customerAvg}</span>
+              <span className="listing-customer-rating-count">
+                ({customerReviewCount} {customerReviewCount === 1 ? 'review' : 'reviews'})
+              </span>
+            </>
+          ) : (
+            <span className="listing-customer-rating-empty">No customer reviews yet</span>
           )}
         </div>
 
