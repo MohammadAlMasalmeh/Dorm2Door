@@ -235,7 +235,7 @@ export default function BookAppointment({ session }) {
     return (
       <div className="booking-done">
         <div className="booking-done-icon">✓</div>
-        <h2 className="booking-done-title">You're booked!</h2>
+        <h2 className="booking-done-title">You're appointment request has been sent!</h2>
         <p className="booking-done-desc">Heading to your appointments...</p>
       </div>
     )
