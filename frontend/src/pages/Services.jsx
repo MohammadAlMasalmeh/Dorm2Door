@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react'
-import { Link, NavLink, useLocation } from 'react-router-dom'
+import { useState, useEffect, useCallback } from 'react'
+import { Link, NavLink } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 
 const FIGMA = {
-  bg: '#E8EFE9',
+  bg: '#E7E4DF',
   dark: '#3E4E47',
   white: '#F4F7F4',
-  accent: '#C67C4E',
+  accent: '#CC6D00',
   text: '#212121',
 }
 
@@ -72,6 +72,37 @@ function StarIcon() {
     </svg>
   )
 }
+function PencilIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+    </svg>
+  )
+}
+
+function formatWeekRangeLabel() {
+  const end = new Date()
+  const start = new Date()
+  start.setDate(start.getDate() - 7)
+  const o = { day: 'numeric', month: 'short', year: 'numeric' }
+  return `${start.toLocaleDateString('en-GB', o)} - ${end.toLocaleDateString('en-GB', o)}`
+}
+
+function serviceLine(appt) {
+  if (appt.service_options) {
+    const base = appt.services?.name || ''
+    const opt = appt.service_options.name || ''
+    return `${base} · ${opt}`.trim() || 'Service'
+  }
+  return appt.services?.name || 'Service'
+}
+
+function priceStr(appt) {
+  const p = appt.service_options?.price != null ? appt.service_options.price : appt.services?.price
+  if (p == null) return ''
+  return `$${Number(p).toFixed(0)}`
+}
 
 export default function Services({ session, userProfile }) {
   const isProvider = userProfile?.role === 'provider' || session?.user?.user_metadata?.role === 'provider'
@@ -79,59 +110,124 @@ export default function Services({ session, userProfile }) {
   const [pending, setPending] = useState([])
   const [myServices, setMyServices] = useState([])
   const [stats, setStats] = useState({ servicesProvided: 0, revenue: 0 })
+  const [avgReview, setAvgReview] = useState(null)
+  const [serviceMetrics, setServiceMetrics] = useState({})
+  const [serviceRatings, setServiceRatings] = useState({})
+  const [serviceReviewCounts, setServiceReviewCounts] = useState({})
   const [loading, setLoading] = useState(true)
   const [consumerNames, setConsumerNames] = useState({})
+  const [apptTab, setApptTab] = useState('upcoming')
+  const [actionError, setActionError] = useState('')
+  const [updatingId, setUpdatingId] = useState(null)
+  const [weekLabel] = useState(() => formatWeekRangeLabel())
+
+  const loadDashboard = useCallback(async () => {
+    if (!session?.user?.id || !isProvider) {
+      setLoading(false)
+      return
+    }
+    const uid = session.user.id
+    const now = new Date().toISOString()
+    const weekAgo = new Date()
+    weekAgo.setDate(weekAgo.getDate() - 7)
+    const weekAgoIso = weekAgo.toISOString()
+
+    const [
+      apptRes,
+      svcRes,
+      statsRes,
+      providerRes,
+      completedRes,
+      reviewsListRes,
+    ] = await Promise.all([
+      supabase
+        .from('appointments')
+        .select('id, scheduled_at, status, consumer_id, providers (location), services (name, price), service_options (name, price)')
+        .eq('provider_id', uid)
+        .order('scheduled_at', { ascending: true }),
+      supabase
+        .from('services')
+        .select('id, name, image_url, service_options (id, name, price)')
+        .eq('provider_id', uid),
+      supabase
+        .from('appointments')
+        .select('id, status, services (price), service_options (price)')
+        .eq('provider_id', uid)
+        .gte('scheduled_at', weekAgoIso)
+        .in('status', ['confirmed', 'completed']),
+      supabase.from('providers').select('avg_rating').eq('id', uid).maybeSingle(),
+      supabase
+        .from('appointments')
+        .select('id, service_id, service_options (price), services (price)')
+        .eq('provider_id', uid)
+        .eq('status', 'completed'),
+      supabase.from('reviews').select('rating, appointment_id').eq('provider_id', uid),
+    ])
+
+    const list = apptRes.data || []
+    const up = list.filter(a => ['pending', 'confirmed'].includes(a.status) && a.scheduled_at >= now)
+    const pend = list.filter(a => a.status === 'pending')
+    setUpcoming(up)
+    setPending(pend)
+    setMyServices(svcRes.data || [])
+
+    const statsList = statsRes.data || []
+    let revenue = 0
+    statsList.forEach(a => {
+      const p = a.service_options?.price != null ? a.service_options.price : a.services?.price
+      if (p != null) revenue += Number(p)
+    })
+    setStats({ servicesProvided: statsList.length, revenue })
+
+    const ar = providerRes.data?.avg_rating
+    setAvgReview(ar != null && Number(ar) > 0 ? Number(ar) : null)
+
+    const metrics = {}
+    ;(completedRes.data || []).forEach(a => {
+      const sid = a.service_id
+      if (!sid) return
+      if (!metrics[sid]) metrics[sid] = { revenue: 0, count: 0 }
+      metrics[sid].count += 1
+      const p = a.service_options?.price != null ? a.service_options.price : a.services?.price
+      if (p != null) metrics[sid].revenue += Number(p)
+    })
+    setServiceMetrics(metrics)
+
+    const revRows = reviewsListRes.data || []
+    const apptIds = [...new Set(revRows.map(r => r.appointment_id).filter(Boolean))]
+    let apptToService = {}
+    if (apptIds.length) {
+      const { data: apRows } = await supabase.from('appointments').select('id, service_id').in('id', apptIds)
+      ;(apRows || []).forEach(a => { apptToService[a.id] = a.service_id })
+    }
+    const ratings = {}
+    const reviewCounts = {}
+    revRows.forEach(r => {
+      const sid = apptToService[r.appointment_id]
+      if (!sid) return
+      if (!ratings[sid]) ratings[sid] = []
+      ratings[sid].push(Number(r.rating))
+      reviewCounts[sid] = (reviewCounts[sid] || 0) + 1
+    })
+    const avgByService = {}
+    Object.keys(ratings).forEach(sid => {
+      const arr = ratings[sid]
+      avgByService[sid] = arr.reduce((s, x) => s + x, 0) / arr.length
+    })
+    setServiceRatings(avgByService)
+    setServiceReviewCounts(reviewCounts)
+
+    setLoading(false)
+  }, [session?.user?.id, isProvider])
 
   useEffect(() => {
-    if (!session?.user?.id) { setLoading(false); return }
-    const uid = session.user.id
-
-    if (isProvider) {
-      const now = new Date().toISOString()
-      const weekAgo = new Date()
-      weekAgo.setDate(weekAgo.getDate() - 7)
-      const weekAgoIso = weekAgo.toISOString()
-
-      Promise.all([
-        supabase
-          .from('appointments')
-          .select('id, scheduled_at, status, consumer_id, providers (location), services (name, price), service_options (name, price)')
-          .eq('provider_id', uid)
-          .order('scheduled_at', { ascending: true }),
-        supabase
-          .from('services')
-          .select('id, name, image_url, service_options (id, name, price)')
-          .eq('provider_id', uid),
-        supabase
-          .from('appointments')
-          .select('id, status, services (price), service_options (price)')
-          .eq('provider_id', uid)
-          .gte('scheduled_at', weekAgoIso)
-          .in('status', ['confirmed', 'completed']),
-      ]).then(([apptRes, svcRes, statsRes]) => {
-        const list = apptRes.data || []
-        const up = list.filter(a => ['pending', 'confirmed'].includes(a.status) && a.scheduled_at >= now)
-        const pend = list.filter(a => a.status === 'pending')
-        setUpcoming(up)
-        setPending(pend)
-
-        setMyServices(svcRes.data || [])
-
-        const statsList = statsRes.data || []
-        let revenue = 0
-        statsList.forEach(a => {
-          const p = a.service_options?.price != null ? a.service_options.price : a.services?.price
-          if (p != null) revenue += Number(p)
-        })
-        setStats({ servicesProvided: statsList.length, revenue })
-
-        setLoading(false)
-      })
-    } else {
-      setMyServices([])
+    if (!session?.user?.id) {
       setLoading(false)
+      return
     }
-  }, [session?.user?.id, isProvider])
+    setLoading(true)
+    void loadDashboard()
+  }, [session?.user?.id, loadDashboard])
 
   useEffect(() => {
     const ids = [...upcoming, ...pending].map(a => a.consumer_id).filter(Boolean)
@@ -144,8 +240,83 @@ export default function Services({ session, userProfile }) {
     })
   }, [upcoming, pending])
 
+  async function updateAppointmentStatus(id, status) {
+    setUpdatingId(id)
+    setActionError('')
+    const { error } = await supabase.from('appointments').update({ status }).eq('id', id)
+    setUpdatingId(null)
+    if (error) {
+      setActionError(error.message || 'Something went wrong. Try again.')
+      return
+    }
+    await loadDashboard()
+  }
+
   const consumerName = (appt) => appt?.consumer_id ? (consumerNames[appt.consumer_id]?.display_name || 'Customer') : 'Customer'
   const consumerAvatar = (appt) => appt?.consumer_id ? consumerNames[appt.consumer_id]?.avatar_url : null
+
+  function AppointmentFigmaCard({ appt, mode }) {
+    const d = new Date(appt.scheduled_at)
+    const dateShort = d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+    const timeShort = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    const name = consumerName(appt)
+    const avatar = consumerAvatar(appt)
+    const title = serviceLine(appt)
+    const price = priceStr(appt)
+    const loc = appt.providers?.location?.trim() || 'TBD'
+    const busy = updatingId === appt.id
+
+    return (
+      <div className="services-appt-figma-card">
+        <div className="services-appt-figma-head">
+          <span className="services-appt-figma-title">{title}</span>
+          <span className="services-appt-figma-date">{dateShort}</span>
+        </div>
+        {price ? <p className="services-appt-figma-price">{price}</p> : null}
+        <div className="services-appt-figma-meta-row">
+          <div className="services-appt-figma-meta">
+            <PinIcon />
+            <span>{loc}</span>
+          </div>
+          <div className="services-appt-figma-meta">
+            <ClockIcon />
+            <span>{timeShort}</span>
+          </div>
+        </div>
+        <div className="services-appt-figma-customer">
+          {avatar ? <img src={avatar} alt="" className="services-appt-figma-avatar" /> : <span className="services-appt-figma-avatar services-appt-figma-avatar-placeholder">{(name || '?')[0]}</span>}
+          <span>{name}</span>
+        </div>
+        {mode === 'upcoming' && (
+          <div className="services-appt-figma-actions">
+            <Link to="/appointments" className="services-appt-figma-btn-solid">
+              More Details
+            </Link>
+          </div>
+        )}
+        {mode === 'pending' && (
+          <div className="services-appt-figma-pending-actions">
+            <button
+              type="button"
+              className="services-appt-figma-btn-solid"
+              disabled={busy}
+              onClick={() => updateAppointmentStatus(appt.id, 'confirmed')}
+            >
+              Accept
+            </button>
+            <button
+              type="button"
+              className="services-appt-figma-btn-outline"
+              disabled={busy}
+              onClick={() => updateAppointmentStatus(appt.id, 'cancelled')}
+            >
+              Decline
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="services-page" style={{ background: FIGMA.bg, minHeight: '100vh' }}>
@@ -175,164 +346,122 @@ export default function Services({ session, userProfile }) {
       </aside>
 
       <main className="services-main">
-        <h1 className="services-title">Appointments</h1>
-
-        <div className="services-appointments-grid">
-          <div className="services-panel" style={{ background: FIGMA.dark }}>
-            <h2 className="services-panel-title">Upcoming</h2>
-            <div className="services-panel-cards">
-              {loading && <p className="services-panel-empty">Loading…</p>}
-              {!loading && upcoming.length === 0 && <p className="services-panel-empty">No upcoming appointments</p>}
-              {!loading && upcoming.slice(0, 3).map(appt => {
-                const d = new Date(appt.scheduled_at)
-                const dateStr = d.toLocaleString([], { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-                const name = consumerName(appt)
-                const avatar = consumerAvatar(appt)
-                const serviceName = appt.service_options
-                  ? `${appt.services?.name || ''} · ${appt.service_options.name}`.trim() || 'Service'
-                  : (appt.services?.name || 'Service')
-                const price = (appt.service_options?.price != null ? appt.service_options.price : appt.services?.price) != null
-                  ? `$${Number(appt.service_options?.price ?? appt.services?.price).toFixed(0)}`
-                  : ''
-                return (
-                  <div key={appt.id} className="services-appt-card">
-                    <div className="services-appt-row">
-                      <span className="services-appt-service">{serviceName}</span>
-                      {price && <span className="services-appt-price">{price}</span>}
-                    </div>
-                    <div className="services-appt-meta">
-                      {avatar ? <img src={avatar} alt="" className="services-appt-avatar" /> : <span className="services-appt-avatar services-appt-avatar-initials">{(name || '?')[0]}</span>}
-                      <span>{name}</span>
-                    </div>
-                    <div className="services-appt-meta">
-                      <ClockIcon />
-                      <span>{dateStr}</span>
-                    </div>
-                    <div className="services-appt-meta">
-                      <PinIcon />
-                      <span>{appt.providers?.location?.trim() || 'TBD'}</span>
-                    </div>
-                    <Link to="/appointments" className="services-appt-btn-outline">Cancel Appointment</Link>
-                  </div>
-                )
-              })}
+        <section id="stats" className="services-section services-section-stats">
+          <h1 className="services-heading">Weekly Stats</h1>
+          <div className="services-stats-row">
+            <div className="services-stat-card services-stat-card-bordered">
+              <p className="services-stat-label-dark">Revenue</p>
+              <p className="services-stat-value-dark">${stats.revenue.toFixed(2)}</p>
+              <p className="services-stat-date-dark">{weekLabel}</p>
+            </div>
+            <div className="services-stat-card services-stat-card-bordered">
+              <p className="services-stat-label-dark">Services Provided</p>
+              <p className="services-stat-value-dark">{stats.servicesProvided}</p>
+              <p className="services-stat-date-dark">{weekLabel}</p>
+            </div>
+            <div className="services-stat-card services-stat-card-bordered">
+              <p className="services-stat-label-dark">Average Review</p>
+              <p className="services-stat-value-dark">{avgReview != null ? avgReview.toFixed(1) : '—'}</p>
+              <p className="services-stat-date-dark">{weekLabel}</p>
             </div>
           </div>
+        </section>
 
-          <div className="services-panel" style={{ background: FIGMA.dark }}>
-            <h2 className="services-panel-title">Pending</h2>
-            <div className="services-panel-cards">
-              {!loading && pending.length === 0 && <p className="services-panel-empty">No pending requests</p>}
-              {!loading && pending.slice(0, 3).map(appt => {
-                const d = new Date(appt.scheduled_at)
-                const dateStr = d.toLocaleString([], { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-                const name = consumerName(appt)
-                const avatar = consumerAvatar(appt)
-                const serviceName = appt.service_options
-                  ? `${appt.services?.name || ''} · ${appt.service_options.name}`.trim() || 'Service'
-                  : (appt.services?.name || 'Service')
-                const price = (appt.service_options?.price != null ? appt.service_options.price : appt.services?.price) != null
-                  ? `$${Number(appt.service_options?.price ?? appt.services?.price).toFixed(0)}`
-                  : ''
-                return (
-                  <div key={appt.id} className="services-appt-card">
-                    <div className="services-appt-row">
-                      <span className="services-appt-service">{serviceName}</span>
-                      {price && <span className="services-appt-price">{price}</span>}
+        <section className="services-section services-section-appointments">
+          <h1 className="services-heading">Appointments</h1>
+          {actionError ? <p className="services-action-error" role="alert">{actionError}</p> : null}
+          <div className="services-appt-tabs">
+            <button
+              type="button"
+              className={`services-appt-tab${apptTab === 'upcoming' ? ' services-appt-tab-active' : ''}`}
+              onClick={() => setApptTab('upcoming')}
+            >
+              Upcoming
+            </button>
+            <button
+              type="button"
+              className={`services-appt-tab${apptTab === 'pending' ? ' services-appt-tab-active' : ''}`}
+              onClick={() => setApptTab('pending')}
+            >
+              Pending
+            </button>
+          </div>
+
+          <div className="services-appt-cards-row">
+            {loading && <p className="services-panel-empty-dark">Loading…</p>}
+            {!loading && apptTab === 'upcoming' && upcoming.length === 0 && (
+              <p className="services-panel-empty-dark">No upcoming appointments</p>
+            )}
+            {!loading && apptTab === 'upcoming' && upcoming.map(appt => (
+              <AppointmentFigmaCard key={appt.id} appt={appt} mode="upcoming" />
+            ))}
+            {!loading && apptTab === 'pending' && pending.length === 0 && (
+              <p className="services-panel-empty-dark">No pending requests</p>
+            )}
+            {!loading && apptTab === 'pending' && pending.map(appt => (
+              <AppointmentFigmaCard key={appt.id} appt={appt} mode="pending" />
+            ))}
+          </div>
+        </section>
+
+        <section className="services-section">
+          <h2 className="services-heading">Your Services</h2>
+          <div className="services-your-list">
+            {!isProvider && (
+              <p className="services-empty-msg">You’re not a provider yet. <Link to="/my-services">Add a service</Link> to start earning.</p>
+            )}
+            {isProvider && myServices.length === 0 && !loading && (
+              <p className="services-empty-msg">No services yet. <Link to="/my-services">Add your first service</Link>.</p>
+            )}
+            {isProvider && myServices.map(svc => {
+              const m = serviceMetrics[svc.id] || { revenue: 0, count: 0 }
+              const rAvg = serviceRatings[svc.id]
+              const nRev = serviceReviewCounts[svc.id] || 0
+              const reviewLabel = rAvg != null && nRev > 0 ? `${rAvg.toFixed(1)} (${nRev})` : '—'
+              return (
+                <div key={svc.id} className="services-your-card-dark">
+                  <div
+                    className="services-your-card-dark-img"
+                    style={svc.image_url ? { backgroundImage: `url(${svc.image_url})` } : {}}
+                  >
+                    {!svc.image_url && <span>{(svc.name || 'S')[0]}</span>}
+                  </div>
+                  <div className="services-your-card-dark-body">
+                    <p className="services-your-card-dark-name">{svc.name}</p>
+                    {(svc.service_options && svc.service_options.length > 0) && (
+                      <p className="services-your-card-dark-options">
+                        {(svc.service_options || []).map(opt => `${opt.name} $${Number(opt.price).toFixed(0)}`).join(' · ')}
+                      </p>
+                    )}
+                    <div className="services-your-card-dark-rating">
+                      <StarIcon />
+                      <span>{reviewLabel}</span>
                     </div>
-                    <div className="services-appt-meta">
-                      {avatar ? <img src={avatar} alt="" className="services-appt-avatar" /> : <span className="services-appt-avatar services-appt-avatar-initials">{(name || '?')[0]}</span>}
-                      <span>{name}</span>
-                    </div>
-                    <div className="services-appt-meta">
-                      <ClockIcon />
-                      <span>{dateStr}</span>
-                    </div>
-                    <div className="services-appt-meta">
-                      <PinIcon />
-                      <span>{appt.providers?.location?.trim() || 'TBD'}</span>
-                    </div>
-                    <div className="services-appt-actions">
-                      <button type="button" className="services-appt-btn-outline">Accept</button>
-                      <button type="button" className="services-appt-btn-outline">Decline</button>
+                    <div className="services-your-card-dark-footer">
+                      <span>${Number(m.revenue).toFixed(0)} Earned</span>
+                      <span>{m.count} Appointments Completed</span>
                     </div>
                   </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-
-        <h1 className="services-title services-title-spaced">Weekly Stats</h1>
-        <div id="stats" className="services-stats-row">
-          <div className="services-stat-card" style={{ background: FIGMA.dark }}>
-            <p className="services-stat-label">Services Provided</p>
-            <p className="services-stat-value">{stats.servicesProvided}</p>
-            <p className="services-stat-date">15 Feb 2026 - 22 Feb 2026</p>
-          </div>
-          <div className="services-stat-card" style={{ background: FIGMA.dark }}>
-            <p className="services-stat-label">Revenue</p>
-            <p className="services-stat-value">${stats.revenue}</p>
-            <p className="services-stat-date">15 Feb 2026 - 22 Feb 2026</p>
-          </div>
-          <div className="services-stat-card" style={{ background: FIGMA.dark }}>
-            <p className="services-stat-label">Bookings</p>
-            <p className="services-stat-value">{pending.length}</p>
-            <p className="services-stat-date">15 Feb 2026 - 22 Feb 2026</p>
-          </div>
-        </div>
-
-        <h2 className="services-section-title">Your Services</h2>
-        <div className="services-your-list">
-          {!isProvider && (
-            <p className="services-empty-msg">You’re not a provider yet. <Link to="/my-services">Add a service</Link> to start earning.</p>
-          )}
-          {isProvider && myServices.length === 0 && !loading && (
-            <p className="services-empty-msg">No services yet. <Link to="/my-services">Add your first service</Link>.</p>
-          )}
-          {isProvider && myServices.map(svc => (
-            <div key={svc.id} className="services-your-card" style={{ position: 'relative' }}>
-              <Link to={`/provider/${session?.user?.id}`} style={{ display: 'contents' }}>
-                <div
-                  className="services-your-card-img"
-                  style={svc.image_url ? { backgroundImage: `url(${svc.image_url})` } : {}}
-                >
-                  {!svc.image_url && <span>{(svc.name || 'S')[0]}</span>}
+                  <Link
+                    to={`/my-services?edit=${svc.id}`}
+                    className="services-your-card-dark-edit"
+                    aria-label={`Edit ${svc.name}`}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <PencilIcon />
+                  </Link>
+                  <Link
+                    to={`/my-services?edit=${svc.id}`}
+                    className="services-your-card-dark-more"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    More Details
+                  </Link>
                 </div>
-                <div className="services-your-card-body">
-                  <p className="services-your-card-name">{svc.name}</p>
-                  {(svc.service_options && svc.service_options.length) > 0 && (
-                    <p className="services-your-card-options">
-                      {(svc.service_options || []).map(opt => `${opt.name} $${Number(opt.price).toFixed(0)}`).join(' · ')}
-                    </p>
-                  )}
-                  <div className="services-your-card-meta">
-                    <span className="services-your-card-avatar" />
-                    <span>{userProfile?.display_name || 'You'}</span>
-                  </div>
-                  <div className="services-your-card-rating">
-                    <StarIcon />
-                    <span>4.8 (10)</span>
-                  </div>
-                </div>
-              </Link>
-              <Link
-                to={`/my-services?edit=${svc.id}`}
-                className="services-your-card-edit"
-                style={{
-                  position: 'absolute', top: 8, right: 8,
-                  background: 'rgba(255,255,255,0.9)', color: FIGMA.dark,
-                  padding: '4px 12px', borderRadius: 6, fontSize: '0.8rem',
-                  fontWeight: 600, textDecoration: 'none',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
-                }}
-                onClick={e => e.stopPropagation()}
-              >
-                Edit
-              </Link>
-            </div>
-          ))}
-        </div>
+              )
+            })}
+          </div>
+        </section>
       </main>
     </div>
   )

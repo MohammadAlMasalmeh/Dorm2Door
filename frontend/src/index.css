@@ -272,12 +272,18 @@ body {
   max-width: none;
 }
 
-/* Full-bleed pages: listing, booking, services, bookings */
+/* Full-bleed pages: listing, booking, bookings */
 .main-content:has(.figma-listing),
 .main-content:has(.figma-booking),
-.main-content:has(.services-page),
 .main-content:has(.bookings-page) {
   background: var(--figma-bg, #E8EFE9);
+  padding: 0;
+  max-width: none;
+}
+
+/* Provider overview — Figma background #E7E4DF */
+.main-content:has(.services-page) {
+  background: #e7e4df;
   padding: 0;
   max-width: none;
 }
