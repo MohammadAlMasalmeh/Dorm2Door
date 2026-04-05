@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link, NavLink, useLocation } from 'react-router-dom'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 
 function ServicesIcon() {
@@ -82,7 +82,10 @@ function timeAgo(ts) {
 
 export default function Nav({ session, userProfile }) {
   const location = useLocation()
+  const navigate = useNavigate()
   const isLanding = location.pathname === '/'
+  const showMessagesSearch = location.pathname.startsWith('/messages')
+  const [globalSearch, setGlobalSearch] = useState('')
   const avatarUrl = userProfile?.avatar_url
   const initials = (userProfile?.display_name || session?.user?.email || '?')
     .split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -146,8 +149,14 @@ export default function Nav({ session, userProfile }) {
     setUnreadCount(0)
   }
 
+  function submitGlobalSearch(e) {
+    e.preventDefault()
+    const q = globalSearch.trim()
+    navigate(q ? `/discover?q=${encodeURIComponent(q)}` : '/discover')
+  }
+
   return (
-    <nav className="nav nav-landing">
+    <nav className={`nav nav-landing${showMessagesSearch ? ' nav-with-global-search' : ''}`}>
       <div className="nav-left">
         <Link to="/" className="nav-logo-wrap">
           <span className="nav-logo-tape" aria-hidden>
@@ -157,6 +166,23 @@ export default function Nav({ session, userProfile }) {
         </Link>
         <span className="nav-location">Austin, TX</span>
       </div>
+
+      {showMessagesSearch && (
+        <form className="nav-global-search" onSubmit={submitGlobalSearch} role="search">
+          <svg className="nav-global-search-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <circle cx="11" cy="11" r="7" />
+            <path d="M20 20l-4-4" strokeLinecap="round" />
+          </svg>
+          <input
+            type="search"
+            className="nav-global-search-input"
+            placeholder="Search for “Math tutoring”"
+            value={globalSearch}
+            onChange={e => setGlobalSearch(e.target.value)}
+            aria-label="Search services"
+          />
+        </form>
+      )}
 
       <div className="nav-right nav-right-stack">
         {((userProfile?.role === 'provider') || (session?.user?.user_metadata?.role === 'provider')) && (

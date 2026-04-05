@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { supabase } from '../supabaseClient'
@@ -32,6 +32,9 @@ function MapClickHandler({ onMapClick }) {
 }
 
 function Discover() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const q = (searchParams.get('q') || '').trim().toLowerCase()
+
   const [center, setCenter] = useState(DEFAULT_CENTER)
   const [userLocation, setUserLocation] = useState(null)
   const [results, setResults] = useState([])
@@ -66,6 +69,15 @@ function Discover() {
   useEffect(() => {
     fetchNearby()
   }, [fetchNearby])
+
+  const filteredResults = useMemo(() => {
+    if (!q) return results
+    return results.filter((r) => {
+      const name = (r.display_name || '').toLowerCase()
+      const svcLine = (r.service_names || []).join(' ').toLowerCase()
+      return name.includes(q) || svcLine.includes(q)
+    })
+  }, [results, q])
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return
@@ -179,7 +191,7 @@ function Discover() {
             <CenterController center={center} />
             <MapClickHandler onMapClick={(e) => setCenter([e.latlng.lat, e.latlng.lng])} />
             {userLocation && <Marker position={userLocation} icon={userIcon}><Popup>You are here</Popup></Marker>}
-            {results.map((r) => {
+            {filteredResults.map((r) => {
               const position = [Number(r.latitude), Number(r.longitude)]
               return (
                 <Marker
@@ -203,12 +215,30 @@ function Discover() {
         </div>
 
         <div className="discover-list">
-          <h2 className="discover-list-title">Services nearby ({results.length})</h2>
+          <h2 className="discover-list-title">
+            Services nearby ({filteredResults.length}
+            {q && results.length !== filteredResults.length ? ` of ${results.length}` : ''})
+          </h2>
+          {q && (
+            <p className="discover-search-hint">
+              Filtering by &ldquo;{searchParams.get('q')}&rdquo;.{' '}
+              <button
+                type="button"
+                className="discover-clear-q"
+                onClick={() => setSearchParams({})}
+              >
+                Clear
+              </button>
+            </p>
+          )}
           {loading && <p className="discover-loading">Loading…</p>}
           {!loading && results.length === 0 && (
             <p className="discover-empty">No providers in this area. Try a larger distance or move the map.</p>
           )}
-          {!loading && results.map((r) => (
+          {!loading && results.length > 0 && filteredResults.length === 0 && (
+            <p className="discover-empty">No listings match your search. Try different keywords or clear the filter.</p>
+          )}
+          {!loading && filteredResults.map((r) => (
             <Link
               key={r.provider_id}
               to={`/provider/${r.provider_id}`}

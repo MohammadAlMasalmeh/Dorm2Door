@@ -64,8 +64,8 @@ export default function App() {
           <Route path="/appointments" element={<Appointments session={session} userProfile={userProfile} />} />
           <Route path="/my-services" element={<ProviderSetup session={session} userProfile={userProfile} onUpdate={() => fetchProfile(session.user.id)} />} />
           <Route path="/profile" element={<Profile session={session} userProfile={userProfile} onUpdate={() => fetchProfile(session.user.id)} />} />
-          <Route path="/messages" element={<Messages session={session} />} />
-          <Route path="/messages/:conversationId" element={<Messages session={session} />} />
+          <Route path="/messages" element={<Messages session={session} userProfile={userProfile} />} />
+          <Route path="/messages/:conversationId" element={<Messages session={session} userProfile={userProfile} />} />
           <Route path="/discover" element={<Discover />} />
           <Route path="/services" element={(userProfile?.role === 'provider' || session?.user?.user_metadata?.role === 'provider') ? <Services session={session} userProfile={userProfile} /> : <Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" />} />
