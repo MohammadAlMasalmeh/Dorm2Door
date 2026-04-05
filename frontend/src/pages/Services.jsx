@@ -1,55 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link, NavLink } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
+import ProviderServicesShell from '../components/ProviderServicesShell'
 
-const FIGMA = {
-  bg: '#E7E4DF',
-  dark: '#3E4E47',
-  white: '#F4F7F4',
-  accent: '#CC6D00',
-  text: '#212121',
-}
-
-function HomeIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-      <polyline points="9 22 9 12 15 12 15 22" />
-    </svg>
-  )
-}
-function CartIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
-      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-    </svg>
-  )
-}
-function StatsIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
-      <polyline points="17 6 23 6 23 12" />
-    </svg>
-  )
-}
-function CalendarIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-      <line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" />
-      <line x1="3" y1="10" x2="21" y2="10" />
-    </svg>
-  )
-}
-function PlusIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  )
-}
 function ClockIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -127,6 +80,19 @@ export default function Services({ session, userProfile }) {
   const [updatingId, setUpdatingId] = useState(null)
   const [weekLabel] = useState(() => formatWeekRangeLabel())
   const [myLocation, setMyLocation] = useState('')
+  const location = useLocation()
+  const navigate = useNavigate()
+  const isStatsView = location.pathname === '/services/stats'
+
+  useEffect(() => {
+    if (location.pathname === '/services' && location.hash === '#stats') {
+      navigate('/services/stats', { replace: true })
+    }
+  }, [location.pathname, location.hash, navigate])
+
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [location.pathname])
 
   const loadDashboard = useCallback(async () => {
     if (!session?.user?.id || !isProvider) {
@@ -351,55 +317,35 @@ export default function Services({ session, userProfile }) {
     )
   }
 
+  const statsSection = (
+    <section id="stats" className="services-section services-section-stats">
+      <h1 className="services-heading">Weekly Stats</h1>
+      <div className="services-stats-row">
+        <div className="services-stat-card services-stat-card-bordered">
+          <p className="services-stat-label-dark">Revenue</p>
+          <p className="services-stat-value-dark">${stats.revenue.toFixed(2)}</p>
+          <p className="services-stat-date-dark">{weekLabel}</p>
+        </div>
+        <div className="services-stat-card services-stat-card-bordered">
+          <p className="services-stat-label-dark">Services Provided</p>
+          <p className="services-stat-value-dark">{stats.servicesProvided}</p>
+          <p className="services-stat-date-dark">{weekLabel}</p>
+        </div>
+        <div className="services-stat-card services-stat-card-bordered">
+          <p className="services-stat-label-dark">Average Review</p>
+          <p className="services-stat-value-dark">{avgReview != null ? avgReview.toFixed(1) : '—'}</p>
+          <p className="services-stat-date-dark">{weekLabel}</p>
+        </div>
+      </div>
+    </section>
+  )
+
   return (
-    <div className="services-page" style={{ background: FIGMA.bg, minHeight: '100vh' }}>
-      <aside className="services-sidebar">
-        <nav className="services-sidebar-nav">
-          <NavLink to="/services" end className={({ isActive }) => `services-sidebar-item${isActive ? ' active' : ''}`}>
-            <HomeIcon />
-            <span>Overview</span>
-          </NavLink>
-          <NavLink to="/my-services" end className={({ isActive }) => `services-sidebar-item${isActive ? ' active' : ''}`}>
-            <CartIcon />
-            <span>Edit services</span>
-          </NavLink>
-          <Link to="/services#stats" className="services-sidebar-item">
-            <StatsIcon />
-            <span>Stats</span>
-          </Link>
-          <Link to="/my-services#availability" className="services-sidebar-item">
-            <CalendarIcon />
-            <span>Availability</span>
-          </Link>
-        </nav>
-        <Link to="/my-services?add=1" className="services-add-btn">
-          <PlusIcon />
-          <span>Add Service</span>
-        </Link>
-      </aside>
-
-      <main className="services-main">
-        <section id="stats" className="services-section services-section-stats">
-          <h1 className="services-heading">Weekly Stats</h1>
-          <div className="services-stats-row">
-            <div className="services-stat-card services-stat-card-bordered">
-              <p className="services-stat-label-dark">Revenue</p>
-              <p className="services-stat-value-dark">${stats.revenue.toFixed(2)}</p>
-              <p className="services-stat-date-dark">{weekLabel}</p>
-            </div>
-            <div className="services-stat-card services-stat-card-bordered">
-              <p className="services-stat-label-dark">Services Provided</p>
-              <p className="services-stat-value-dark">{stats.servicesProvided}</p>
-              <p className="services-stat-date-dark">{weekLabel}</p>
-            </div>
-            <div className="services-stat-card services-stat-card-bordered">
-              <p className="services-stat-label-dark">Average Review</p>
-              <p className="services-stat-value-dark">{avgReview != null ? avgReview.toFixed(1) : '—'}</p>
-              <p className="services-stat-date-dark">{weekLabel}</p>
-            </div>
-          </div>
-        </section>
-
+    <ProviderServicesShell>
+      {isStatsView ? (
+        statsSection
+      ) : (
+        <>
         <section className="services-section services-section-appointments">
           <h1 className="services-heading">Appointments</h1>
           <p className="services-dashboard-hint">
@@ -500,7 +446,8 @@ export default function Services({ session, userProfile }) {
             })}
           </div>
         </section>
-      </main>
-    </div>
+        </>
+      )}
+    </ProviderServicesShell>
   )
 }

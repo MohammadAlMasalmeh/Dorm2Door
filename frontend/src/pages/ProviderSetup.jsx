@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, Circle, Marker, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import Cropper from 'react-easy-crop'
 import { supabase } from '../supabaseClient'
+import ProviderServicesShell from '../components/ProviderServicesShell'
 import 'leaflet/dist/leaflet.css'
 
 /* ── Helpers ────────────────────────────────────────────────── */
@@ -706,16 +707,23 @@ export default function ProviderSetup({ session, userProfile, onUpdate }) {
     }
   }
 
-  if (loading) return <div className="loading-wrap"><div className="spinner" /></div>
+  if (loading) {
+    return (
+      <ProviderServicesShell>
+        <div className="loading-wrap"><div className="spinner" /></div>
+      </ProviderServicesShell>
+    )
+  }
 
   const layoutClass = `provider-setup-layout${editOnlyMode ? ' provider-setup-layout--edit-only' : ''}`
 
   return (
+    <ProviderServicesShell>
     <div className="provider-setup-page">
       {/* Edit-only: back link */}
       {editOnlyMode && (
         <div className="provider-setup-back-row">
-          <Link to="/my-services" className="provider-setup-back-link">&lsaquo; Back to My Services</Link>
+          <Link to="/services" className="provider-setup-back-link">&lsaquo; Back to overview</Link>
         </div>
       )}
 
@@ -1076,5 +1084,6 @@ export default function ProviderSetup({ session, userProfile, onUpdate }) {
         </div>
       )}
     </div>
+    </ProviderServicesShell>
   )
 }
