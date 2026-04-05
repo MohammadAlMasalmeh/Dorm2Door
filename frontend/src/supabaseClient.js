@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
+/** For verified-only access: Supabase Dashboard → Authentication → Providers → Email → enable “Confirm email”. */
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 

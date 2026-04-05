@@ -1,5 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
+
+function emailNeedsVerificationMessage(msg) {
+  const m = (msg || '').toLowerCase()
+  return (
+    m.includes('email not confirmed') ||
+    m.includes('not confirmed') ||
+    m.includes('confirm your email') ||
+    m.includes('email_not_confirmed')
+  )
+}
 
 /** Figma node 629:7201 — PNG in /public is trimmed from the right edge only to drop the Gemini watermark */
 const AUTH_ONBOARDING_HERO = `${import.meta.env.BASE_URL}auth-onboarding-hero.png`
@@ -29,7 +39,7 @@ function AuthSplitBrand() {
   )
 }
 
-export default function Auth() {
+export default function Auth({ pendingVerificationEmail = null, onClearPendingVerification = () => {} }) {
   const [mode, setMode] = useState('signin')
   const [step, setStep] = useState(0)
   const [email, setEmail] = useState('')
@@ -39,21 +49,72 @@ export default function Auth() {
   const [role, setRole] = useState('consumer')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [verifyGateError, setVerifyGateError] = useState(false)
+  const [resendMsg, setResendMsg] = useState('')
+  const [resendLoading, setResendLoading] = useState(false)
+
+  useEffect(() => {
+    if (pendingVerificationEmail) {
+      setEmail(pendingVerificationEmail)
+      setMode('signin')
+      setVerifyGateError(true)
+      setError('Confirm your email before signing in. Open the link we sent you, then try again.')
+    }
+  }, [pendingVerificationEmail])
 
   function reset(nextMode) {
     setError('')
+    setVerifyGateError(false)
+    setResendMsg('')
     setStep(0)
     setMode(nextMode)
+    onClearPendingVerification()
+  }
+
+  async function handleResendConfirmation() {
+    setResendMsg('')
+    const addr = email.trim() || pendingVerificationEmail
+    if (!addr) {
+      setResendMsg('Enter your email above first.')
+      return
+    }
+    if (!addr.endsWith('.edu')) {
+      setResendMsg('Only .edu addresses can use Dorm2Door.')
+      return
+    }
+    setResendLoading(true)
+    const { error: resendErr } = await supabase.auth.resend({ type: 'signup', email: addr })
+    setResendLoading(false)
+    if (resendErr) setResendMsg(resendErr.message)
+    else setResendMsg('If an account exists for that email, we sent a new confirmation link.')
   }
 
   async function handleSignIn(e) {
     e.preventDefault()
     setError('')
+    setVerifyGateError(false)
+    setResendMsg('')
     setLoading(true)
-    const { error: err } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
     if (err) {
-      setError('Invalid email or password.')
+      const needVerify = emailNeedsVerificationMessage(err.message)
+      setVerifyGateError(needVerify)
+      setError(
+        needVerify
+          ? 'Confirm your email before signing in. Open the link we sent you, then try again.'
+          : 'Invalid email or password.'
+      )
+      setLoading(false)
+      return
     }
+    if (data.user && !data.user.email_confirmed_at) {
+      await supabase.auth.signOut()
+      setVerifyGateError(true)
+      setError('Your email is not verified yet. Use the confirmation link we sent, then sign in again.')
+      setLoading(false)
+      return
+    }
+    onClearPendingVerification()
     setLoading(false)
   }
 
@@ -74,7 +135,13 @@ export default function Auth() {
       setError(signErr.message)
       return
     }
-    if (!data.session) setMode('confirm')
+    // Do not allow app access until Supabase marks the email confirmed (requires "Confirm email" in dashboard).
+    if (data.session && data.user && !data.user.email_confirmed_at) {
+      await supabase.auth.signOut()
+    }
+    if (!data.session || (data.user && !data.user.email_confirmed_at)) {
+      setMode('confirm')
+    }
   }
 
   // ── Confirm email ─────────────────────────────────────────────────────────
@@ -120,12 +187,24 @@ export default function Auth() {
           <div className="auth-split-inner">
             <h1 className="auth-title-figma auth-title-figma-left">Sign in</h1>
 
+            {pendingVerificationEmail && (
+              <div className="alert-error" style={{ marginBottom: 16, textAlign: 'left' }}>
+                <strong>Email not verified.</strong> We signed you out until you confirm{' '}
+                <span className="auth-confirm-email" style={{ margin: 0, display: 'inline' }}>
+                  {pendingVerificationEmail}
+                </span>
+                . Check your inbox (and spam) for the link from Supabase.
+              </div>
+            )}
+
             {error && (
               <div className="auth-error-block" style={{ marginBottom: 20 }}>
                 <span className="auth-error-text">{error}</span>
-                <button type="button" className="auth-error-cta" onClick={() => reset('signup')}>
-                  Create account?
-                </button>
+                {!verifyGateError && (
+                  <button type="button" className="auth-error-cta" onClick={() => reset('signup')}>
+                    Create account?
+                  </button>
+                )}
               </div>
             )}
 
@@ -180,6 +259,25 @@ export default function Auth() {
                 {loading ? 'Signing in…' : 'Sign in'}
               </button>
             </form>
+
+            {(verifyGateError || pendingVerificationEmail) && (
+              <div style={{ marginTop: 20, textAlign: 'center' }}>
+                <button
+                  type="button"
+                  className="auth-btn-figma"
+                  style={{ maxWidth: '100%' }}
+                  disabled={resendLoading}
+                  onClick={handleResendConfirmation}
+                >
+                  {resendLoading ? 'Sending…' : 'Resend confirmation email'}
+                </button>
+                {resendMsg && (
+                  <p className="auth-subtitle" style={{ marginTop: 12, marginBottom: 0 }}>
+                    {resendMsg}
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="auth-footer-links">
               <span>Don&apos;t have an account?</span>

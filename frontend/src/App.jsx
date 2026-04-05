@@ -19,18 +19,44 @@ export default function App() {
   const [session, setSession] = useState(null)
   const [userProfile, setUserProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  /** Set when a session exists but email_confirmed_at is null — user must verify via Supabase email */
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState(null)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user && !session.user.email_confirmed_at) {
+        const em = session.user.email
+        await supabase.auth.signOut()
+        setPendingVerificationEmail(em)
+        setSession(null)
+        setLoading(false)
+        return
+      }
+      setPendingVerificationEmail(null)
       setSession(session)
       if (session) fetchProfile(session.user.id)
       else setLoading(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-      if (session) fetchProfile(session.user.id)
-      else { setUserProfile(null); setLoading(false) }
+      void (async () => {
+        if (session?.user && !session.user.email_confirmed_at) {
+          const em = session.user.email
+          await supabase.auth.signOut()
+          setPendingVerificationEmail(em)
+          setSession(null)
+          setUserProfile(null)
+          setLoading(false)
+          return
+        }
+        if (session?.user) setPendingVerificationEmail(null)
+        setSession(session)
+        if (session) fetchProfile(session.user.id)
+        else {
+          setUserProfile(null)
+          setLoading(false)
+        }
+      })()
     })
 
     return () => subscription.unsubscribe()
@@ -50,7 +76,14 @@ export default function App() {
     )
   }
 
-  if (!session) return <Auth />
+  if (!session) {
+    return (
+      <Auth
+        pendingVerificationEmail={pendingVerificationEmail}
+        onClearPendingVerification={() => setPendingVerificationEmail(null)}
+      />
+    )
+  }
 
   return (
     <>
