@@ -79,7 +79,13 @@ export default function Messages({ session, userProfile }) {
   const [loading, setLoading] = useState(true)
   const [convoSearch, setConvoSearch] = useState('')
   const [peerDetail, setPeerDetail] = useState(null)
+  const [newMsgOpen, setNewMsgOpen] = useState(false)
+  const [newMsgQ, setNewMsgQ] = useState('')
+  const [newMsgResults, setNewMsgResults] = useState([])
+  const [newMsgBusy, setNewMsgBusy] = useState(false)
+  const [newMsgErr, setNewMsgErr] = useState('')
   const messagesEndRef = useRef(null)
+  const newMsgSearchDebounceRef = useRef(null)
   const uid = session?.user?.id
 
   const loadConversations = useCallback(async () => {
@@ -227,6 +233,69 @@ export default function Messages({ session, userProfile }) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  useEffect(() => {
+    if (!newMsgOpen) return
+    function onKey(e) {
+      if (e.key === 'Escape') setNewMsgOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [newMsgOpen])
+
+  useEffect(() => {
+    if (!newMsgOpen || !uid) return
+    setNewMsgErr('')
+    const q = newMsgQ.trim()
+    if (q.length < 2) {
+      setNewMsgResults([])
+      return
+    }
+    if (newMsgSearchDebounceRef.current) clearTimeout(newMsgSearchDebounceRef.current)
+    newMsgSearchDebounceRef.current = setTimeout(async () => {
+      setNewMsgBusy(true)
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, display_name, avatar_url, role')
+        .neq('id', uid)
+        .ilike('display_name', `%${q}%`)
+        .limit(25)
+      setNewMsgBusy(false)
+      if (error) {
+        setNewMsgErr(error.message)
+        setNewMsgResults([])
+        return
+      }
+      setNewMsgResults(data || [])
+    }, 300)
+    return () => {
+      if (newMsgSearchDebounceRef.current) clearTimeout(newMsgSearchDebounceRef.current)
+    }
+  }, [newMsgQ, newMsgOpen, uid])
+
+  async function startConversationWith(otherId) {
+    if (!otherId) return
+    setNewMsgErr('')
+    setNewMsgBusy(true)
+    const { data: convId, error } = await supabase.rpc('get_or_create_conversation', { other_user: otherId })
+    setNewMsgBusy(false)
+    if (error) {
+      setNewMsgErr(error.message)
+      return
+    }
+    setNewMsgOpen(false)
+    setNewMsgQ('')
+    setNewMsgResults([])
+    await loadConversations()
+    if (convId) navigate(`/messages/${convId}`)
+  }
+
+  function openNewMessageModal() {
+    setNewMsgErr('')
+    setNewMsgQ('')
+    setNewMsgResults([])
+    setNewMsgOpen(true)
+  }
+
   async function handleSend(e) {
     e.preventDefault()
     if (!input.trim() || !activeConvo) return
@@ -288,12 +357,12 @@ export default function Messages({ session, userProfile }) {
       <div className="messages-layout">
         <aside className={`messages-col messages-col-list${activeConvo ? ' messages-col-hidden-mobile' : ''}`}>
           <div className="messages-list-actions">
-            <Link className="messages-new-btn" to="/discover">
+            <button type="button" className="messages-new-btn" onClick={openNewMessageModal}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                 <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               New message
-            </Link>
+            </button>
             <label className="messages-search-messages">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                 <circle cx="11" cy="11" r="7" />
@@ -310,7 +379,9 @@ export default function Messages({ session, userProfile }) {
           </div>
 
           {conversations.length === 0 ? (
-            <p className="messages-empty">No conversations yet. Find a provider on Discover and message them from their profile.</p>
+            <p className="messages-empty">
+              No conversations yet. Use <strong>New message</strong> to search by name, or open someone’s profile and use Message there.
+            </p>
           ) : (
             <div className="messages-convo-list">
               {filteredConversations.map(c => (
@@ -497,6 +568,83 @@ export default function Messages({ session, userProfile }) {
           )}
         </aside>
       </div>
+
+      {newMsgOpen && (
+        <div
+          className="messages-new-modal-overlay"
+          role="presentation"
+          onClick={() => !newMsgBusy && setNewMsgOpen(false)}
+        >
+          <div
+            className="messages-new-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="messages-new-modal-title"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="messages-new-modal-head">
+              <h2 id="messages-new-modal-title" className="messages-new-modal-title">
+                New message
+              </h2>
+              <button
+                type="button"
+                className="messages-new-modal-close"
+                onClick={() => !newMsgBusy && setNewMsgOpen(false)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <p className="messages-new-modal-hint">Search for someone by the name on their profile (type at least 2 characters).</p>
+            <label className="messages-new-modal-search">
+              <input
+                type="search"
+                autoFocus
+                placeholder="Search by name…"
+                value={newMsgQ}
+                onChange={e => setNewMsgQ(e.target.value)}
+                disabled={newMsgBusy}
+                aria-label="Search users by display name"
+              />
+            </label>
+            {newMsgErr ? <p className="messages-new-modal-error" role="alert">{newMsgErr}</p> : null}
+            <ul className="messages-new-modal-list" aria-busy={newMsgBusy}>
+              {newMsgQ.trim().length < 2 ? (
+                <li className="messages-new-modal-empty">Keep typing to see matches.</li>
+              ) : newMsgBusy ? (
+                <li className="messages-new-modal-empty">Searching…</li>
+              ) : newMsgResults.length === 0 ? (
+                <li className="messages-new-modal-empty">No users match that name.</li>
+              ) : (
+                newMsgResults.map(u => (
+                  <li key={u.id}>
+                    <button
+                      type="button"
+                      className="messages-new-modal-user"
+                      disabled={newMsgBusy}
+                      onClick={() => startConversationWith(u.id)}
+                    >
+                      <span className="messages-new-modal-user-avatar">
+                        {u.avatar_url ? (
+                          <img src={u.avatar_url} alt="" />
+                        ) : (
+                          <span>{(u.display_name || 'U').slice(0, 1).toUpperCase()}</span>
+                        )}
+                      </span>
+                      <span className="messages-new-modal-user-text">
+                        <span className="messages-new-modal-user-name">{u.display_name || 'User'}</span>
+                        {u.role === 'provider' ? (
+                          <span className="messages-new-modal-user-role">Provider</span>
+                        ) : null}
+                      </span>
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
