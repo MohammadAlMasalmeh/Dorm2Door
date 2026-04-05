@@ -143,7 +143,7 @@ export default function Services({ session, userProfile }) {
       apptRes,
       svcRes,
       statsRes,
-      providerRes,
+      providerResFirst,
       completedRes,
       reviewsListRes,
     ] = await Promise.all([
@@ -170,6 +170,15 @@ export default function Services({ session, userProfile }) {
         .eq('status', 'completed'),
       supabase.from('reviews').select('rating, appointment_id').eq('provider_id', uid),
     ])
+
+    let providerRes = providerResFirst
+    if (providerRes.error) {
+      providerRes = await supabase
+        .from('providers')
+        .select('avg_rating, location')
+        .eq('id', uid)
+        .maybeSingle()
+    }
 
     setActionError('')
     if (apptRes.error) {
@@ -352,7 +361,7 @@ export default function Services({ session, userProfile }) {
           </NavLink>
           <NavLink to="/my-services" end className={({ isActive }) => `services-sidebar-item${isActive ? ' active' : ''}`}>
             <CartIcon />
-            <span>Services</span>
+            <span>Edit services</span>
           </NavLink>
           <Link to="/services#stats" className="services-sidebar-item">
             <StatsIcon />

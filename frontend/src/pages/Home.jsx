@@ -96,13 +96,22 @@ export default function Home({ session }) {
 
   async function fetchProviders() {
     setLoading(true)
-    let q = supabase
-      .from('providers')
-      .select('id, bio, tags, avg_rating, review_count, location, users (display_name, avatar_url), services (image_url, price, name, service_options (price))')
-    if (activeTags.size > 0) q = q.overlaps('tags', [...activeTags])
-    if (sortBy === 'rating') q = q.order('avg_rating', { ascending: false })
-    else q = q.order('id', { ascending: false })
-    const { data } = await q
+    const fieldsWithCount =
+      'id, bio, tags, avg_rating, review_count, location, users (display_name, avatar_url), services (image_url, price, name, service_options (price))'
+    const fieldsLegacy =
+      'id, bio, tags, avg_rating, location, users (display_name, avatar_url), services (image_url, price, name, service_options (price))'
+    function providersQuery(fields) {
+      let q = supabase.from('providers').select(fields)
+      if (activeTags.size > 0) q = q.overlaps('tags', [...activeTags])
+      if (sortBy === 'rating') q = q.order('avg_rating', { ascending: false })
+      else q = q.order('id', { ascending: false })
+      return q
+    }
+    let { data, error } = await providersQuery(fieldsWithCount)
+    if (error) {
+      const retry = await providersQuery(fieldsLegacy)
+      data = retry.data
+    }
     // Only show providers that have at least one service so we don't link to "Provider not found"
     setProviders((data || []).filter(p => p?.id && Array.isArray(p.services) && p.services.length > 0))
     setLoading(false)
