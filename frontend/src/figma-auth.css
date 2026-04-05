@@ -88,15 +88,13 @@
   text-align: left;
 }
 
-.auth-container .auth-brand {
+.auth-container .auth-brand-img {
   display: block;
-  font-family: 'Comico', 'Comic Neue', cursive;
-  font-size: 1.5rem;
-  font-weight: 400;
-  color: var(--auth-dark);
-  margin-bottom: 28px;
-  text-align: center;
-  letter-spacing: 0.02em;
+  margin: 0 auto 28px;
+  height: clamp(28px, 8vw, 40px);
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
 }
 
 .auth-container .auth-title {
@@ -494,21 +492,24 @@
   position: relative;
   background: linear-gradient(180deg, #3e4e47 0%, #2d3834 100%);
   color: var(--auth-card, #f4f7f4);
-  padding: 40px 48px 48px;
+  /* Figma frame 617:6012: logo ~43px from top, copy 74px from left */
+  padding: 43px 40px 48px clamp(24px, 4vw, 74px);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-start;
-  overflow: hidden;
+  overflow: visible;
 }
 
-.auth-split-logo {
-  font-family: 'Comic Neue', 'Comico', cursive;
-  font-size: clamp(2rem, 4vw, 3.75rem);
-  font-weight: 400;
-  color: #f4f7f4;
-  margin: 0 0 24px;
-  line-height: 1.05;
+/* Raster wordmark from Figma (see Auth.jsx) — scales down, never clipped */
+.auth-split-logo-img {
+  display: block;
+  width: min(100%, 393px);
+  height: auto;
+  max-height: clamp(56px, 14vw, 99px);
+  object-fit: contain;
+  object-position: left center;
+  margin: 0 0 20px;
 }
 
 .auth-split-hero-wrap {
@@ -517,26 +518,37 @@
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 280px;
-  max-height: min(52vh, 520px);
+  min-height: 200px;
+  min-width: 0;
+  overflow: visible;
 }
 
+/* Always show the full PNG; scales down when the column is narrow or short */
 .auth-split-hero {
   width: 100%;
-  max-width: 520px;
+  max-width: 537px;
   height: auto;
+  max-height: min(52vh, 497px);
   object-fit: contain;
   object-position: center;
+  display: block;
 }
 
 .auth-split-tagline {
-  font-size: clamp(1.25rem, 2.5vw, 2rem);
+  font-size: clamp(1.25rem, 2.2vw, 2rem);
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.48px;
   color: #fff;
-  max-width: 280px;
-  line-height: 1.2;
+  max-width: 265px;
+  line-height: 1.15;
   margin-top: auto;
+  font-family: 'Satoshi', 'DM Sans', sans-serif;
+}
+
+@media (min-width: 901px) {
+  .auth-split-tagline {
+    font-size: 2rem;
+  }
 }
 
 .auth-split-panel {
@@ -546,6 +558,13 @@
   justify-content: center;
   padding: 48px 32px;
   min-height: 100vh;
+}
+
+@media (min-width: 901px) {
+  .auth-split-panel {
+    /* Figma Frame 229: py 196px, px 122px */
+    padding: clamp(120px, 22vh, 196px) clamp(48px, 10vw, 122px);
+  }
 }
 
 .auth-split-panel--wide .auth-split-inner {
@@ -564,10 +583,16 @@
 .auth-split .auth-title-figma {
   font-size: 2rem;
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.48px;
   color: #212121;
   margin: 0 0 32px;
   text-align: center;
+}
+
+@media (min-width: 901px) {
+  .auth-split .auth-title-figma {
+    font-size: 32px;
+  }
 }
 
 .auth-split .auth-title-figma-left {
@@ -587,9 +612,9 @@
   padding: 12px 14px;
   border: 2px solid rgba(46, 56, 51, 0.55);
   border-radius: 16px;
-  font-size: 0.875rem;
+  font-size: 14px;
   font-weight: 500;
-  letter-spacing: 0.015em;
+  letter-spacing: 0.21px;
   font-family: inherit;
   color: #212121;
   background: #fff;
@@ -624,7 +649,7 @@
   border-radius: 16px;
   background: var(--auth-accent);
   color: #f4f7f4;
-  font-size: 1.125rem;
+  font-size: 20px;
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
@@ -701,8 +726,11 @@
     padding: 32px 24px;
   }
   .auth-split-hero-wrap {
-    max-height: 240px;
-    min-height: 180px;
+    min-height: 160px;
+  }
+
+  .auth-split-hero {
+    max-height: min(40vh, 280px);
   }
   .auth-split-tagline {
     margin-top: 24px;

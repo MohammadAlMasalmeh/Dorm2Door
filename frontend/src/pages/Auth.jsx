@@ -1,18 +1,26 @@
 import { useState } from 'react'
 import { supabase } from '../supabaseClient'
 
-/** Figma asset — student services illustration (Create Account / onboarding) */
-const AUTH_ONBOARDING_HERO =
-  'https://www.figma.com/api/mcp/asset/5ff1b531-ce7f-42b1-b48e-c0c17e99fc5e'
+/** Figma node 629:7201 — PNG in /public is trimmed from the right edge only to drop the Gemini watermark */
+const AUTH_ONBOARDING_HERO = `${import.meta.env.BASE_URL}auth-onboarding-hero.png`
+/**
+ * Wordmarks must be raster/SVG exports from Figma (text layer node 620:6177), not live text.
+ * The Figma *layer name* is “DORM2DOor”; the shipped stand-ins use all-caps DORM2DOOR + Comic Neue.
+ * Replace both files with your real Comico export (@2×, transparent) when you have it.
+ * — auth-dorm2door-wordmark.png: #f4f7f4 on transparent (green panel)
+ * — auth-dorm2door-wordmark-dark.png: #3e4e47 on transparent (light card)
+ */
+const AUTH_WORDMARK_LIGHT = `${import.meta.env.BASE_URL}auth-dorm2door-wordmark.png`
+const AUTH_WORDMARK_DARK = `${import.meta.env.BASE_URL}auth-dorm2door-wordmark-dark.png`
 
 function AuthBrand() {
-  return <span className="auth-brand">DORM2DOOR</span>
+  return <img src={AUTH_WORDMARK_DARK} alt="Dorm2Door" className="auth-brand-img" />
 }
 
 function AuthSplitBrand() {
   return (
     <aside className="auth-split-brand">
-      <p className="auth-split-logo">DORM2DOOR</p>
+      <img src={AUTH_WORDMARK_LIGHT} alt="Dorm2Door" className="auth-split-logo-img" />
       <div className="auth-split-hero-wrap">
         <img src={AUTH_ONBOARDING_HERO} alt="" className="auth-split-hero" />
       </div>
