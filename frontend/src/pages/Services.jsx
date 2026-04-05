@@ -393,12 +393,9 @@ export default function Services({ session, userProfile }) {
 
         <section className="services-section services-section-appointments">
           <h1 className="services-heading">Appointments</h1>
-          <p
-            className="services-dashboard-hint"
-            style={{ fontSize: 15, color: FIGMA.text, opacity: 0.75, margin: '0 0 12px', maxWidth: 640 }}
-          >
+          <p className="services-dashboard-hint">
             Accept requests in <strong>Pending</strong> or on{' '}
-            <Link to="/appointments" style={{ color: FIGMA.dark, fontWeight: 600 }}>Bookings</Link>
+            <Link to="/appointments">Bookings</Link>
             . Mark visits complete there so customers can leave reviews.
           </p>
           {actionError ? <p className="services-action-error" role="alert">{actionError}</p> : null}

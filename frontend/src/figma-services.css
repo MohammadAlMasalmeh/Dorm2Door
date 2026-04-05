@@ -109,6 +109,19 @@
   margin-bottom: 16px;
 }
 
+.services-dashboard-hint {
+  font-size: 15px;
+  color: #212121;
+  opacity: 0.75;
+  margin: 0 0 12px;
+  max-width: 640px;
+  line-height: 1.45;
+}
+.services-dashboard-hint a {
+  color: #3e4e47;
+  font-weight: 600;
+}
+
 .services-action-error {
   color: #a32020;
   font-size: 15px;

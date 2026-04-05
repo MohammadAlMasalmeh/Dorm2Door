@@ -191,6 +191,16 @@
   font-weight: 500;
   color: var(--figma-black);
 }
+.figma-landing .figma-upcoming-card-hint {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--figma-black);
+  opacity: 0.65;
+  line-height: 1.4;
+}
+.figma-landing .figma-upcoming-box .figma-empty.figma-upcoming-alert {
+  margin-bottom: 12px;
+}
 .figma-landing .figma-upcoming-card-actions {
   display: flex;
   gap: 12px;

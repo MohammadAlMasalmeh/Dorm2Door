@@ -237,7 +237,7 @@ export default function Home({ session }) {
         <div className="figma-upcoming-box">
           <h2 className="figma-upcoming-title">Upcoming Appointments</h2>
           {homeApptError && (
-            <p className="figma-empty" style={{ marginBottom: 12 }} role="alert">{homeApptError}</p>
+            <p className="figma-empty figma-upcoming-alert" role="alert">{homeApptError}</p>
           )}
           {upcomingAppointments.length === 0 ? (
             <p className="figma-empty">No upcoming appointments. <Link to="/discover">Find a service</Link></p>
@@ -276,7 +276,7 @@ export default function Home({ session }) {
                         {appt.providers?.location?.trim() || 'TBD'}
                       </span>
                     </div>
-                    <p className="figma-upcoming-card-hint" style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--figma-black)', opacity: 0.65, lineHeight: 1.4 }}>
+                    <p className="figma-upcoming-card-hint">
                       {st === 'pending'
                         ? 'Waiting for the provider to accept. After they confirm and you meet, mark the booking complete — then leave a review under Bookings.'
                         : 'When the visit is finished, mark complete. You’ll be prompted to rate your provider on the Bookings page.'}
