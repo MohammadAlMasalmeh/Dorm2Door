@@ -269,6 +269,11 @@ export function ApptCard({
             Rate customer
           </button>
         )}
+        {variant === 'pending' && st === 'completed' && appointmentHasCustomerRating(appt) && (
+          <span className="bookings-card-reviewed" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            You rated this customer
+          </span>
+        )}
       </div>
     </div>
   )

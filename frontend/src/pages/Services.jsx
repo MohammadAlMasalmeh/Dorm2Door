@@ -198,32 +198,27 @@ export default function Services({ session, userProfile }) {
     await loadDashboard()
   }
 
-  const upcomingFuture = useMemo(() => {
-    const t = new Date().toISOString()
-    return providerIncoming.filter(
-      (a) => normalizeApptStatus(a) === 'confirmed' && a.scheduled_at >= t,
-    )
-  }, [providerIncoming])
+  /** Hide declined/cancelled bookings from the provider dashboard */
+  const dashboardAppointments = useMemo(
+    () => providerIncoming.filter((a) => normalizeApptStatus(a) !== 'cancelled'),
+    [providerIncoming],
+  )
 
   const pendingQueue = useMemo(
-    () => providerIncoming.filter((a) => normalizeApptStatus(a) === 'pending'),
-    [providerIncoming],
+    () => dashboardAppointments.filter((a) => normalizeApptStatus(a) === 'pending'),
+    [dashboardAppointments],
   )
 
-  const confirmedPast = useMemo(() => {
-    const t = new Date().toISOString()
-    return providerIncoming.filter(
-      (a) => normalizeApptStatus(a) === 'confirmed' && a.scheduled_at < t,
-    )
-  }, [providerIncoming])
+  /** Accepted requests: all confirmed visits until marked complete */
+  const upcomingConfirmed = useMemo(
+    () => dashboardAppointments.filter((a) => normalizeApptStatus(a) === 'confirmed'),
+    [dashboardAppointments],
+  )
 
   const completedIncoming = useMemo(
-    () => providerIncoming.filter((a) => normalizeApptStatus(a) === 'completed'),
-    [providerIncoming],
+    () => dashboardAppointments.filter((a) => normalizeApptStatus(a) === 'completed'),
+    [dashboardAppointments],
   )
-
-  const queueColumnEmpty =
-    pendingQueue.length === 0 && confirmedPast.length === 0 && completedIncoming.length === 0
 
   const statsSection = (
     <section id="stats" className="services-section services-section-stats">
@@ -257,21 +252,42 @@ export default function Services({ session, userProfile }) {
         <section className="services-section services-section-appointments">
           <h1 className="services-heading">Appointments</h1>
           <p className="services-dashboard-hint">
-            Accept new requests, mark visits complete when you’re done, and rate customers here. Customers complete visits and review you from{' '}
-            <strong>Bookings</strong> in the top nav.
+            <strong>Pending</strong> → accept or decline (declined requests disappear). Accepted bookings move to <strong>Upcoming</strong>; mark complete when done, then rate the customer under <strong>Completed</strong>. Customers use <strong>Bookings</strong> in the top nav for their side.
           </p>
           {actionError ? <p className="services-action-error" role="alert">{actionError}</p> : null}
           {loading ? (
             <p className="services-panel-empty-dark">Loading…</p>
           ) : (
-            <div className="bookings-columns services-provider-appt-columns">
+            <div className="bookings-columns services-provider-appt-columns services-provider-appt-three">
+              <section className="bookings-col">
+                <h3 className="bookings-col-title">Pending requests</h3>
+                <p className="bookings-col-hint services-appt-col-hint">Accept moves the booking to Upcoming. Decline removes it from your dashboard.</p>
+                <div className="bookings-cards">
+                  {pendingQueue.length === 0 ? (
+                    <p className="bookings-empty">No pending requests.</p>
+                  ) : (
+                    pendingQueue.map((appt) => (
+                      <ApptCard
+                        key={appt.id}
+                        appt={appt}
+                        variant="pending"
+                        helpLinkTo="/services"
+                        providerLocationOverride={myLocation}
+                        onAccept={(id) => updateAppointmentStatus(id, 'confirmed')}
+                        onDecline={(id) => updateAppointmentStatus(id, 'cancelled')}
+                      />
+                    ))
+                  )}
+                </div>
+              </section>
               <section className="bookings-col">
                 <h3 className="bookings-col-title">Upcoming</h3>
+                <p className="bookings-col-hint services-appt-col-hint">Confirmed visits. Mark complete when the service is done.</p>
                 <div className="bookings-cards">
-                  {upcomingFuture.length === 0 ? (
+                  {upcomingConfirmed.length === 0 ? (
                     <p className="bookings-empty">No upcoming appointments.</p>
                   ) : (
-                    upcomingFuture.map((appt) => (
+                    upcomingConfirmed.map((appt) => (
                       <ApptCard
                         key={appt.id}
                         appt={appt}
@@ -279,54 +295,28 @@ export default function Services({ session, userProfile }) {
                         helpLinkTo="/services"
                         providerLocationOverride={myLocation}
                         onComplete={(id) => updateAppointmentStatus(id, 'completed')}
-                        onRateCustomer={setCustomerReviewAppt}
                       />
                     ))
                   )}
                 </div>
               </section>
               <section className="bookings-col">
-                <h3 className="bookings-col-title">Requests &amp; completed</h3>
+                <h3 className="bookings-col-title">Completed</h3>
+                <p className="bookings-col-hint services-appt-col-hint">Rate customers after completed visits (optional).</p>
                 <div className="bookings-cards">
-                  {queueColumnEmpty ? (
-                    <p className="bookings-empty">No pending requests.</p>
+                  {completedIncoming.length === 0 ? (
+                    <p className="bookings-empty">No completed appointments yet.</p>
                   ) : (
-                    <>
-                      {pendingQueue.map((appt) => (
-                        <ApptCard
-                          key={appt.id}
-                          appt={appt}
-                          variant="pending"
-                          helpLinkTo="/services"
-                          providerLocationOverride={myLocation}
-                          onAccept={(id) => updateAppointmentStatus(id, 'confirmed')}
-                          onDecline={(id) => updateAppointmentStatus(id, 'cancelled')}
-                          onComplete={(id) => updateAppointmentStatus(id, 'completed')}
-                          onRateCustomer={setCustomerReviewAppt}
-                        />
-                      ))}
-                      {confirmedPast.map((appt) => (
-                        <ApptCard
-                          key={appt.id}
-                          appt={appt}
-                          variant="pending"
-                          helpLinkTo="/services"
-                          providerLocationOverride={myLocation}
-                          onComplete={(id) => updateAppointmentStatus(id, 'completed')}
-                          onRateCustomer={setCustomerReviewAppt}
-                        />
-                      ))}
-                      {completedIncoming.map((appt) => (
-                        <ApptCard
-                          key={appt.id}
-                          appt={appt}
-                          variant="pending"
-                          helpLinkTo="/services"
-                          providerLocationOverride={myLocation}
-                          onRateCustomer={setCustomerReviewAppt}
-                        />
-                      ))}
-                    </>
+                    completedIncoming.map((appt) => (
+                      <ApptCard
+                        key={appt.id}
+                        appt={appt}
+                        variant="pending"
+                        helpLinkTo="/services"
+                        providerLocationOverride={myLocation}
+                        onRateCustomer={setCustomerReviewAppt}
+                      />
+                    ))
                   )}
                 </div>
               </section>
