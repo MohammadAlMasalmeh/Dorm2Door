@@ -1,23 +1,13 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import ProviderServicesShell from '../components/ProviderServicesShell'
+import {
+  ApptCard,
+  CustomerReviewModal,
+  normalizeApptStatus,
+} from '../components/BookingCards'
 
-function ClockIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-    </svg>
-  )
-}
-function PinIcon() {
-  return (
-    <svg width="14" height="20" viewBox="0 0 14 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M7 0C3.13 0 0 3.13 0 7c0 5.25 7 13 7 13s7-7.75 7-13C14 3.13 10.87 0 7 0z" />
-      <circle cx="7" cy="7" r="2.5" />
-    </svg>
-  )
-}
 function StarIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none">
@@ -42,31 +32,9 @@ function formatWeekRangeLabel() {
   return `${start.toLocaleDateString('en-GB', o)} - ${end.toLocaleDateString('en-GB', o)}`
 }
 
-function serviceLine(appt) {
-  if (appt.service_options) {
-    const base = appt.services?.name || ''
-    const opt = appt.service_options.name || ''
-    return `${base} · ${opt}`.trim() || 'Service'
-  }
-  return appt.services?.name || 'Service'
-}
-
-function priceStr(appt) {
-  const p = appt.service_options?.price != null ? appt.service_options.price : appt.services?.price
-  if (p == null) return ''
-  return `$${Number(p).toFixed(0)}`
-}
-
-function normalizeApptStatus(a) {
-  const s = a?.status
-  if (s == null || s === '') return ''
-  return String(s).trim().toLowerCase()
-}
-
 export default function Services({ session, userProfile }) {
   const isProvider = userProfile?.role === 'provider' || session?.user?.user_metadata?.role === 'provider'
-  const [upcoming, setUpcoming] = useState([])
-  const [pending, setPending] = useState([])
+  const [providerIncoming, setProviderIncoming] = useState([])
   const [myServices, setMyServices] = useState([])
   const [stats, setStats] = useState({ servicesProvided: 0, revenue: 0 })
   const [avgReview, setAvgReview] = useState(null)
@@ -74,10 +42,8 @@ export default function Services({ session, userProfile }) {
   const [serviceRatings, setServiceRatings] = useState({})
   const [serviceReviewCounts, setServiceReviewCounts] = useState({})
   const [loading, setLoading] = useState(true)
-  const [consumerNames, setConsumerNames] = useState({})
-  const [apptTab, setApptTab] = useState('upcoming')
   const [actionError, setActionError] = useState('')
-  const [updatingId, setUpdatingId] = useState(null)
+  const [customerReviewAppt, setCustomerReviewAppt] = useState(null)
   const [weekLabel] = useState(() => formatWeekRangeLabel())
   const [myLocation, setMyLocation] = useState('')
   const location = useLocation()
@@ -100,7 +66,6 @@ export default function Services({ session, userProfile }) {
       return
     }
     const uid = session.user.id
-    const now = new Date().toISOString()
     const weekAgo = new Date()
     weekAgo.setDate(weekAgo.getDate() - 7)
     const weekAgoIso = weekAgo.toISOString()
@@ -115,7 +80,9 @@ export default function Services({ session, userProfile }) {
     ] = await Promise.all([
       supabase
         .from('appointments')
-        .select('id, scheduled_at, status, consumer_id, services (name, price), service_options (name, price)')
+        .select(
+          'id, consumer_id, status, scheduled_at, users!appointments_consumer_id_fkey (display_name, avg_customer_rating, customer_review_count), services (name, price), service_options (name, price), customer_reviews (id)',
+        )
         .eq('provider_id', uid)
         .order('scheduled_at', { ascending: true }),
       supabase
@@ -149,16 +116,9 @@ export default function Services({ session, userProfile }) {
     setActionError('')
     if (apptRes.error) {
       setActionError(apptRes.error.message || 'Could not load appointments')
-      setUpcoming([])
-      setPending([])
+      setProviderIncoming([])
     } else {
-      const list = apptRes.data || []
-      const pend = list.filter((a) => normalizeApptStatus(a) === 'pending')
-      const up = list.filter(
-        (a) => normalizeApptStatus(a) === 'confirmed' && a.scheduled_at >= now
-      )
-      setPending(pend)
-      setUpcoming(up)
+      setProviderIncoming(apptRes.data || [])
     }
 
     setMyServices(svcRes.data || [])
@@ -223,27 +183,14 @@ export default function Services({ session, userProfile }) {
     void loadDashboard()
   }, [session?.user?.id, loadDashboard])
 
-  useEffect(() => {
-    const ids = [...upcoming, ...pending].map((a) => a.consumer_id).filter(Boolean)
-    if (ids.length === 0) return
-    const uniqueIds = [...new Set(ids)]
-    supabase.from('users').select('id, display_name, avatar_url').in('id', uniqueIds).then(({ data }) => {
-      const map = {}
-      ;(data || []).forEach((u) => { map[u.id] = u })
-      setConsumerNames(map)
-    })
-  }, [upcoming, pending])
-
   async function updateAppointmentStatus(id, status) {
     if (!session?.user?.id) return
-    setUpdatingId(id)
     setActionError('')
     const { error } = await supabase
       .from('appointments')
       .update({ status })
       .eq('id', id)
       .eq('provider_id', session.user.id)
-    setUpdatingId(null)
     if (error) {
       setActionError(error.message || 'Something went wrong. Try again.')
       return
@@ -251,71 +198,32 @@ export default function Services({ session, userProfile }) {
     await loadDashboard()
   }
 
-  const consumerName = (appt) => appt?.consumer_id ? (consumerNames[appt.consumer_id]?.display_name || 'Customer') : 'Customer'
-  const consumerAvatar = (appt) => appt?.consumer_id ? consumerNames[appt.consumer_id]?.avatar_url : null
-
-  function AppointmentFigmaCard({ appt, mode }) {
-    const d = new Date(appt.scheduled_at)
-    const dateShort = d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
-    const timeShort = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-    const name = consumerName(appt)
-    const avatar = consumerAvatar(appt)
-    const title = serviceLine(appt)
-    const price = priceStr(appt)
-    const loc = myLocation || 'TBD'
-    const busy = updatingId === appt.id
-
-    return (
-      <div className="services-appt-figma-card">
-        <div className="services-appt-figma-head">
-          <span className="services-appt-figma-title">{title}</span>
-          <span className="services-appt-figma-date">{dateShort}</span>
-        </div>
-        {price ? <p className="services-appt-figma-price">{price}</p> : null}
-        <div className="services-appt-figma-meta-row">
-          <div className="services-appt-figma-meta">
-            <PinIcon />
-            <span>{loc}</span>
-          </div>
-          <div className="services-appt-figma-meta">
-            <ClockIcon />
-            <span>{timeShort}</span>
-          </div>
-        </div>
-        <div className="services-appt-figma-customer">
-          {avatar ? <img src={avatar} alt="" className="services-appt-figma-avatar" /> : <span className="services-appt-figma-avatar services-appt-figma-avatar-placeholder">{(name || '?')[0]}</span>}
-          <span>{name}</span>
-        </div>
-        {mode === 'upcoming' && (
-          <div className="services-appt-figma-actions">
-            <Link to="/appointments" className="services-appt-figma-btn-solid">
-              More Details
-            </Link>
-          </div>
-        )}
-        {mode === 'pending' && (
-          <div className="services-appt-figma-pending-actions">
-            <button
-              type="button"
-              className="services-appt-figma-btn-solid"
-              disabled={busy}
-              onClick={() => updateAppointmentStatus(appt.id, 'confirmed')}
-            >
-              Accept
-            </button>
-            <button
-              type="button"
-              className="services-appt-figma-btn-outline"
-              disabled={busy}
-              onClick={() => updateAppointmentStatus(appt.id, 'cancelled')}
-            >
-              Decline
-            </button>
-          </div>
-        )}
-      </div>
+  const upcomingFuture = useMemo(() => {
+    const t = new Date().toISOString()
+    return providerIncoming.filter(
+      (a) => normalizeApptStatus(a) === 'confirmed' && a.scheduled_at >= t,
     )
-  }
+  }, [providerIncoming])
+
+  const pendingQueue = useMemo(
+    () => providerIncoming.filter((a) => normalizeApptStatus(a) === 'pending'),
+    [providerIncoming],
+  )
+
+  const confirmedPast = useMemo(() => {
+    const t = new Date().toISOString()
+    return providerIncoming.filter(
+      (a) => normalizeApptStatus(a) === 'confirmed' && a.scheduled_at < t,
+    )
+  }, [providerIncoming])
+
+  const completedIncoming = useMemo(
+    () => providerIncoming.filter((a) => normalizeApptStatus(a) === 'completed'),
+    [providerIncoming],
+  )
+
+  const queueColumnEmpty =
+    pendingQueue.length === 0 && confirmedPast.length === 0 && completedIncoming.length === 0
 
   const statsSection = (
     <section id="stats" className="services-section services-section-stats">
@@ -349,43 +257,81 @@ export default function Services({ session, userProfile }) {
         <section className="services-section services-section-appointments">
           <h1 className="services-heading">Appointments</h1>
           <p className="services-dashboard-hint">
-            Accept requests in <strong>Pending</strong> or on{' '}
-            <Link to="/appointments">Bookings</Link>
-            . Mark visits complete there so customers can leave reviews.
+            Accept new requests, mark visits complete when you’re done, and rate customers here. Customers complete visits and review you from{' '}
+            <strong>Bookings</strong> in the top nav.
           </p>
           {actionError ? <p className="services-action-error" role="alert">{actionError}</p> : null}
-          <div className="services-appt-tabs">
-            <button
-              type="button"
-              className={`services-appt-tab${apptTab === 'upcoming' ? ' services-appt-tab-active' : ''}`}
-              onClick={() => setApptTab('upcoming')}
-            >
-              Upcoming
-            </button>
-            <button
-              type="button"
-              className={`services-appt-tab${apptTab === 'pending' ? ' services-appt-tab-active' : ''}`}
-              onClick={() => setApptTab('pending')}
-            >
-              Pending
-            </button>
-          </div>
-
-          <div className="services-appt-cards-row">
-            {loading && <p className="services-panel-empty-dark">Loading…</p>}
-            {!loading && apptTab === 'upcoming' && upcoming.length === 0 && (
-              <p className="services-panel-empty-dark">No upcoming appointments</p>
-            )}
-            {!loading && apptTab === 'upcoming' && upcoming.map((appt) => (
-              <AppointmentFigmaCard key={appt.id} appt={appt} mode="upcoming" />
-            ))}
-            {!loading && apptTab === 'pending' && pending.length === 0 && (
-              <p className="services-panel-empty-dark">No pending requests. If you have booking notifications, open Bookings or refresh.</p>
-            )}
-            {!loading && apptTab === 'pending' && pending.map((appt) => (
-              <AppointmentFigmaCard key={appt.id} appt={appt} mode="pending" />
-            ))}
-          </div>
+          {loading ? (
+            <p className="services-panel-empty-dark">Loading…</p>
+          ) : (
+            <div className="bookings-columns services-provider-appt-columns">
+              <section className="bookings-col">
+                <h3 className="bookings-col-title">Upcoming</h3>
+                <div className="bookings-cards">
+                  {upcomingFuture.length === 0 ? (
+                    <p className="bookings-empty">No upcoming appointments.</p>
+                  ) : (
+                    upcomingFuture.map((appt) => (
+                      <ApptCard
+                        key={appt.id}
+                        appt={appt}
+                        variant="pending"
+                        helpLinkTo="/services"
+                        providerLocationOverride={myLocation}
+                        onComplete={(id) => updateAppointmentStatus(id, 'completed')}
+                        onRateCustomer={setCustomerReviewAppt}
+                      />
+                    ))
+                  )}
+                </div>
+              </section>
+              <section className="bookings-col">
+                <h3 className="bookings-col-title">Requests &amp; completed</h3>
+                <div className="bookings-cards">
+                  {queueColumnEmpty ? (
+                    <p className="bookings-empty">No pending requests.</p>
+                  ) : (
+                    <>
+                      {pendingQueue.map((appt) => (
+                        <ApptCard
+                          key={appt.id}
+                          appt={appt}
+                          variant="pending"
+                          helpLinkTo="/services"
+                          providerLocationOverride={myLocation}
+                          onAccept={(id) => updateAppointmentStatus(id, 'confirmed')}
+                          onDecline={(id) => updateAppointmentStatus(id, 'cancelled')}
+                          onComplete={(id) => updateAppointmentStatus(id, 'completed')}
+                          onRateCustomer={setCustomerReviewAppt}
+                        />
+                      ))}
+                      {confirmedPast.map((appt) => (
+                        <ApptCard
+                          key={appt.id}
+                          appt={appt}
+                          variant="pending"
+                          helpLinkTo="/services"
+                          providerLocationOverride={myLocation}
+                          onComplete={(id) => updateAppointmentStatus(id, 'completed')}
+                          onRateCustomer={setCustomerReviewAppt}
+                        />
+                      ))}
+                      {completedIncoming.map((appt) => (
+                        <ApptCard
+                          key={appt.id}
+                          appt={appt}
+                          variant="pending"
+                          helpLinkTo="/services"
+                          providerLocationOverride={myLocation}
+                          onRateCustomer={setCustomerReviewAppt}
+                        />
+                      ))}
+                    </>
+                  )}
+                </div>
+              </section>
+            </div>
+          )}
         </section>
 
         <section className="services-section">
@@ -447,6 +393,18 @@ export default function Services({ session, userProfile }) {
           </div>
         </section>
         </>
+      )}
+
+      {customerReviewAppt && (
+        <CustomerReviewModal
+          appt={customerReviewAppt}
+          session={session}
+          onClose={() => setCustomerReviewAppt(null)}
+          onSubmit={() => {
+            setCustomerReviewAppt(null)
+            void loadDashboard()
+          }}
+        />
       )}
     </ProviderServicesShell>
   )

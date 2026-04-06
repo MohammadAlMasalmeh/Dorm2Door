@@ -216,10 +216,12 @@ export default function Nav({ session, userProfile }) {
           <span>Discover</span>
         </NavLink>
 
-        <NavLink to="/appointments" className={({ isActive }) => `nav-stack-item${isActive ? ' active' : ''}`}>
-          <CalendarIcon />
-          <span>Bookings</span>
-        </NavLink>
+        {!(userProfile?.role === 'provider' || session?.user?.user_metadata?.role === 'provider') && (
+          <NavLink to="/appointments" className={({ isActive }) => `nav-stack-item${isActive ? ' active' : ''}`}>
+            <CalendarIcon />
+            <span>Bookings</span>
+          </NavLink>
+        )}
 
         <NavLink to="/messages" className={({ isActive }) => `nav-stack-item${isActive ? ' active' : ''}`}>
           <MessagesIcon />
