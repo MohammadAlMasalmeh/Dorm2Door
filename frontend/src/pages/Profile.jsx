@@ -84,6 +84,7 @@ export default function Profile({ session, userProfile, onUpdate }) {
   const [showEditModal, setShowEditModal] = useState(false)
   const [tagsInput, setTagsInput] = useState('')
   const [customerRating, setCustomerRating] = useState({ avg: null, count: 0 })
+  const [providerReviewCount, setProviderReviewCount] = useState(0)
   const fileInputRef = useRef(null)
   const bannerInputRef = useRef(null)
 
@@ -117,15 +118,26 @@ export default function Profile({ session, userProfile, onUpdate }) {
     setTagsInput(Array.isArray(arr) ? arr.filter(Boolean).join(', ') : '')
   }, [userProfile?.tags])
 
-  // Fetch provider data
+  // Fetch provider data and service review count
   useEffect(() => {
     if (!uid) return
-    supabase
-      .from('providers')
-      .select('bio, tags, location')
-      .eq('id', uid)
-      .maybeSingle()
-      .then(({ data }) => setProvider(data))
+    void (async () => {
+      const { data } = await supabase
+        .from('providers')
+        .select('bio, tags, location, avg_rating')
+        .eq('id', uid)
+        .maybeSingle()
+      setProvider(data)
+      if (data) {
+        const { count } = await supabase
+          .from('reviews')
+          .select('*', { count: 'exact', head: true })
+          .eq('provider_id', uid)
+        setProviderReviewCount(count ?? 0)
+      } else {
+        setProviderReviewCount(0)
+      }
+    })()
   }, [uid])
 
   // Fetch friend count and friend list
@@ -263,6 +275,10 @@ export default function Profile({ session, userProfile, onUpdate }) {
 
   const tags = (userProfile?.tags ?? []).filter(Boolean).slice(0, 5)
   const aboutText = bio || provider?.bio || ''
+  const providerAvg =
+    provider?.avg_rating != null && Number(provider.avg_rating) > 0
+      ? Number(provider.avg_rating).toFixed(1)
+      : null
 
   async function handleAvatarChange(e) {
     const file = e.target.files?.[0]
@@ -437,20 +453,40 @@ export default function Profile({ session, userProfile, onUpdate }) {
             <div className="profile-info-block">
               <h1 className="profile-display-name">{userProfile?.display_name || 'User'}</h1>
               <p className="profile-friends">{friendCount} {friendCount === 1 ? 'Friend' : 'Friends'}</p>
-              {customerRating.count > 0 && customerRating.avg != null ? (
-                <p className="profile-customer-rating" title="Average from providers after completed bookings">
-                  <span className="profile-customer-rating-label">Customer rating</span>
-                  <RatingStars value={customerRating.avg} />
-                  <span>{customerRating.avg.toFixed(1)}</span>
-                  <span className="profile-customer-rating-meta">
-                    ({customerRating.count} {customerRating.count === 1 ? 'rating' : 'ratings'} from providers)
-                  </span>
-                </p>
-              ) : (
-                <p className="profile-customer-rating-empty">
-                  Provider ratings will appear here after providers rate their experience with you on completed bookings.
-                </p>
-              )}
+              <div className="profile-ratings" aria-label="Ratings">
+                <div className="profile-rating-row">
+                  <span className="profile-rating-label">Customer</span>
+                  {customerRating.count > 0 && customerRating.avg != null ? (
+                    <>
+                      <RatingStars value={customerRating.avg} size="0.85rem" />
+                      <span className="profile-rating-score">{customerRating.avg.toFixed(1)}</span>
+                      <span className="profile-rating-count" title="Average from providers after completed bookings">
+                        ({customerRating.count} {customerRating.count === 1 ? 'review' : 'reviews'})
+                      </span>
+                    </>
+                  ) : (
+                    <span className="profile-rating-empty">
+                      Provider ratings will appear here after providers rate their experience with you on completed bookings.
+                    </span>
+                  )}
+                </div>
+                {provider && (
+                  <div className="profile-rating-row">
+                    <span className="profile-rating-label">Provider</span>
+                    {providerReviewCount > 0 && providerAvg ? (
+                      <>
+                        <RatingStars value={provider.avg_rating} size="0.85rem" />
+                        <span className="profile-rating-score">{providerAvg}</span>
+                        <span className="profile-rating-count">
+                          ({providerReviewCount} {providerReviewCount === 1 ? 'review' : 'reviews'})
+                        </span>
+                      </>
+                    ) : (
+                      <span className="profile-rating-empty">No reviews yet</span>
+                    )}
+                  </div>
+                )}
+              </div>
               <section className="profile-about">
                 <h2 className="profile-about-title">About</h2>
                 <p className="profile-about-text">{aboutText || 'Add a short bio in settings.'}</p>

@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 
+function Stars({ value, size = '0.9rem' }) {
+  const n = Math.round(Number(value) || 0)
+  return <span className="listing-stars" style={{ fontSize: size }}>{'★'.repeat(n)}{'☆'.repeat(5 - n)}</span>
+}
+
 export default function UserProfile({ session }) {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -11,6 +16,7 @@ export default function UserProfile({ session }) {
   const [friendStatus, setFriendStatus] = useState('none')
   const [friendActionLoading, setFriendActionLoading] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [providerReviewCount, setProviderReviewCount] = useState(0)
 
   const uid = session?.user?.id
   const isOwn = uid === id
@@ -21,13 +27,30 @@ export default function UserProfile({ session }) {
       return
     }
     async function load() {
-      const { data: userData } = await supabase.from('users').select('id, display_name, avatar_url, banner_url, bio, tags').eq('id', id).single()
+      const { data: userData } = await supabase
+        .from('users')
+        .select('id, display_name, avatar_url, banner_url, bio, tags, avg_customer_rating, customer_review_count')
+        .eq('id', id)
+        .single()
       setUser(userData)
       if (userData) {
-        const { data: provData } = await supabase.from('providers').select('id, bio, location').eq('id', id).maybeSingle()
+        const { data: provData } = await supabase
+          .from('providers')
+          .select('id, bio, location, avg_rating')
+          .eq('id', id)
+          .maybeSingle()
         setProvider(provData)
-        const { count } = await supabase.from('friends').select('*', { count: 'exact', head: true }).or(`user_id.eq.${id},friend_id.eq.${id}`)
-        setFriendCount(count ?? 0)
+        if (provData) {
+          const { count: rc } = await supabase
+            .from('reviews')
+            .select('*', { count: 'exact', head: true })
+            .eq('provider_id', id)
+          setProviderReviewCount(rc ?? 0)
+        } else {
+          setProviderReviewCount(0)
+        }
+        const { count: fc } = await supabase.from('friends').select('*', { count: 'exact', head: true }).or(`user_id.eq.${id},friend_id.eq.${id}`)
+        setFriendCount(fc ?? 0)
       }
       setLoading(false)
     }
@@ -95,6 +118,15 @@ export default function UserProfile({ session }) {
   const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
   const tags = (user.tags ?? []).filter(Boolean).slice(0, 5)
   const aboutText = user.bio || provider?.bio || ''
+  const customerReviewCount = user.customer_review_count ?? 0
+  const customerAvg =
+    user.avg_customer_rating != null && Number(user.avg_customer_rating) > 0
+      ? Number(user.avg_customer_rating).toFixed(1)
+      : null
+  const providerAvg =
+    provider?.avg_rating != null && Number(provider.avg_rating) > 0
+      ? Number(provider.avg_rating).toFixed(1)
+      : null
 
   const friendBtnLabel = {
     none: 'Add Friend',
@@ -151,6 +183,38 @@ export default function UserProfile({ session }) {
             <div className="profile-info-block">
               <h1 className="profile-display-name">{name}</h1>
               <p className="profile-friends">{friendCount} {friendCount === 1 ? 'Friend' : 'Friends'}</p>
+              <div className="profile-ratings" aria-label="Ratings">
+                <div className="profile-rating-row">
+                  <span className="profile-rating-label">Customer</span>
+                  {customerReviewCount > 0 && customerAvg ? (
+                    <>
+                      <Stars value={user.avg_customer_rating} size="0.85rem" />
+                      <span className="profile-rating-score">{customerAvg}</span>
+                      <span className="profile-rating-count">
+                        ({customerReviewCount} {customerReviewCount === 1 ? 'review' : 'reviews'})
+                      </span>
+                    </>
+                  ) : (
+                    <span className="profile-rating-empty">No reviews yet</span>
+                  )}
+                </div>
+                {provider && (
+                  <div className="profile-rating-row">
+                    <span className="profile-rating-label">Provider</span>
+                    {providerReviewCount > 0 && providerAvg ? (
+                      <>
+                        <Stars value={provider.avg_rating} size="0.85rem" />
+                        <span className="profile-rating-score">{providerAvg}</span>
+                        <span className="profile-rating-count">
+                          ({providerReviewCount} {providerReviewCount === 1 ? 'review' : 'reviews'})
+                        </span>
+                      </>
+                    ) : (
+                      <span className="profile-rating-empty">No reviews yet</span>
+                    )}
+                  </div>
+                )}
+              </div>
               <section className="profile-about">
                 <h2 className="profile-about-title">About</h2>
                 <p className="profile-about-text">{aboutText || 'No bio yet.'}</p>

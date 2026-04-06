@@ -197,6 +197,22 @@
   gap: 10px;
   flex-wrap: wrap;
 }
+.figma-listing .listing-customer-rating {
+  margin-top: 10px;
+  font-size: 0.875rem;
+  color: rgba(27, 27, 27, 0.65);
+}
+.figma-listing .listing-customer-rating-label {
+  color: var(--figma-text);
+}
+.figma-listing .listing-customer-rating-score {
+  color: var(--figma-text);
+  font-weight: 600;
+}
+.figma-listing .listing-customer-rating-count,
+.figma-listing .listing-customer-rating-empty {
+  color: rgba(27, 27, 27, 0.5);
+}
 .figma-listing .listing-provider-avatar {
   width: 36px;
   height: 36px;

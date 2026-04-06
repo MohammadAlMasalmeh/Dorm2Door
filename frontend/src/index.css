@@ -1570,7 +1570,7 @@ textarea.form-input { resize: vertical; min-height: 84px; }
   font-size: 16px;
   color: #1B1B1B;
   opacity: 0.5;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   line-height: normal;
 }
 
@@ -1601,6 +1601,41 @@ textarea.form-input { resize: vertical; min-height: 84px; }
   font-size: 14px;
   margin: 0 0 22px;
   line-height: 1.45;
+}
+
+.profile-ratings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+.profile-rating-row {
+  font-size: 14px;
+  color: #1B1B1B;
+  opacity: 0.85;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  line-height: 1.4;
+}
+.profile-rating-label {
+  font-weight: 600;
+  opacity: 1;
+  min-width: 4.5rem;
+}
+.profile-rating-score {
+  font-weight: 600;
+  opacity: 1;
+}
+.profile-rating-count {
+  color: #1B1B1B;
+  opacity: 0.45;
+  font-size: 13px;
+}
+.profile-rating-empty {
+  opacity: 0.45;
+  font-size: 14px;
 }
 
 .profile-about-title {
@@ -2733,6 +2768,24 @@ textarea.form-input {
 .listing-provider-name { font-size: 1.5rem; font-weight: 400; color: var(--text-primary); }
 .listing-provider-meta { font-size: 1rem; color: var(--text-primary); }
 .listing-provider-location { font-size: 1rem; color: rgba(0,0,0,0.5); margin-left: auto; }
+.listing-customer-rating {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 12px;
+  margin-bottom: 4px;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+.listing-customer-rating-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-right: 4px;
+}
+.listing-customer-rating-score { font-weight: 600; color: var(--text-primary); }
+.listing-customer-rating-count { font-size: 0.88rem; color: var(--text-muted); }
+.listing-customer-rating-empty { font-size: 0.9rem; color: var(--text-muted); }
 .listing-heading { font-size: 1.5rem; font-weight: 400; color: var(--text-primary); margin: 0 0 8px; }
 .listing-overview { font-size: 1rem; color: var(--text-primary); line-height: 1.5; margin: 0; }
 .listing-divider { height: 1px; background: var(--border); width: 100%; margin: 0; }
