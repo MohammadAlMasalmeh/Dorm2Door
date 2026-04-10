@@ -26,6 +26,16 @@ export function normalizeApptStatus(appt) {
   return String(s).trim().toLowerCase()
 }
 
+function formatServiceTitle(appt) {
+  const base = (appt.services?.name || '').trim()
+  const opt = (appt.service_options?.name || '').trim()
+  if (opt && base && opt.toLowerCase() === base.toLowerCase()) return base || '—'
+  if (opt && base) return `${base} · ${opt}`
+  if (base) return base
+  if (opt) return opt
+  return '—'
+}
+
 export function apptProviderId(appt) {
   return appt?.provider_id ?? appt?.providers?.id ?? null
 }
@@ -220,9 +230,7 @@ export function ApptCard({
   const consumerName = appt.users?.display_name || '—'
   const consumerRating = appt.users?.avg_customer_rating != null ? Number(appt.users.avg_customer_rating).toFixed(1) : null
   const consumerReviewCount = appt.users?.customer_review_count ?? 0
-  const serviceName = appt.service_options
-    ? `${appt.services?.name || ''} · ${appt.service_options.name}`.trim() || '—'
-    : (appt.services?.name || '—')
+  const serviceName = formatServiceTitle(appt)
   const price = (appt.service_options?.price != null ? appt.service_options.price : appt.services?.price) != null
     ? `$${Number(appt.service_options?.price ?? appt.services?.price).toFixed(0)}`
     : ''
@@ -231,6 +239,8 @@ export function ApptCard({
     ? (providerLocationOverride?.trim() || 'Location TBD')
     : (appt.providers?.location?.trim() || 'Location TBD')
 
+  const splitActionRow = variant === 'pending' && st === 'pending' && onAccept && onDecline
+
   return (
     <div className="bookings-card">
       <div className="bookings-card-top">
@@ -238,25 +248,30 @@ export function ApptCard({
           <span className="bookings-card-service">{serviceName}</span>
           {price && <span className="bookings-card-price">{price}</span>}
         </div>
-        <div className="bookings-card-meta">
-          <span className="bookings-card-avatar-wrap" />
-          <span className="bookings-card-meta-text">{variant === 'pending' ? consumerName : providerName}</span>
-          {variant === 'pending' && (consumerRating || consumerReviewCount === 0) && (
-            <span className="bookings-card-meta-rating" title="Customer rating (visible in request context)">
-              {consumerRating ? ` ★ ${consumerRating} (${consumerReviewCount})` : ' · New customer'}
-            </span>
-          )}
+        <div className="bookings-card-meta bookings-card-meta--person">
+          <span className="bookings-card-avatar-wrap" aria-hidden />
+          <div className="bookings-card-person">
+            <span className="bookings-card-person-name">{variant === 'pending' ? consumerName : providerName}</span>
+            {variant === 'pending' && (consumerRating || consumerReviewCount === 0) && (
+              <span
+                className="bookings-card-person-badge"
+                title={consumerRating ? 'Customer rating' : 'No prior reviews on Dorm2Door'}
+              >
+                {consumerRating ? `★ ${consumerRating} (${consumerReviewCount})` : 'New customer'}
+              </span>
+            )}
+          </div>
         </div>
-        <div className="bookings-card-meta">
+        <div className="bookings-card-meta bookings-card-meta--row">
           <span className="bookings-card-icon bookings-card-icon-clock" aria-hidden>🕐</span>
           <span className="bookings-card-meta-text">{dateStr}</span>
         </div>
-        <div className="bookings-card-meta">
+        <div className="bookings-card-meta bookings-card-meta--row">
           <span className="bookings-card-icon bookings-card-icon-pin" aria-hidden>📍</span>
           <span className="bookings-card-meta-text">{locationLine}</span>
         </div>
       </div>
-      <div className="bookings-card-actions">
+      <div className={`bookings-card-actions${splitActionRow ? ' bookings-card-actions--split' : ''}`}>
         {variant === 'cancelled' && (
           <p className="bookings-card-hint" style={{ margin: 0, width: '100%', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
             This booking was cancelled.
