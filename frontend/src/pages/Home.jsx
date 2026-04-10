@@ -97,9 +97,9 @@ export default function Home({ session }) {
   async function fetchProviders() {
     setLoading(true)
     const fieldsWithCount =
-      'id, bio, tags, avg_rating, review_count, location, users (display_name, avatar_url), services (image_url, price, name, service_options (price))'
+      'id, bio, tags, avg_rating, review_count, location, users (display_name, avatar_url), services (id, image_url, price, name, service_options (id, name, price))'
     const fieldsLegacy =
-      'id, bio, tags, avg_rating, location, users (display_name, avatar_url), services (image_url, price, name, service_options (price))'
+      'id, bio, tags, avg_rating, location, users (display_name, avatar_url), services (id, image_url, price, name, service_options (id, name, price))'
     function providersQuery(fields) {
       let q = supabase.from('providers').select(fields)
       if (activeTags.size > 0) q = q.overlaps('tags', [...activeTags])
@@ -117,16 +117,30 @@ export default function Home({ session }) {
     setLoading(false)
   }
 
-  const filtered = useMemo(() => {
-    if (!queryFromUrl) return providers
-    const normalizedQuery = normalizeForSearch(queryFromUrl)
-    return providers.filter(p => {
+  const serviceCards = useMemo(() => {
+    const rows = []
+    for (const p of providers) {
+      for (const s of (p.services || [])) {
+        rows.push({
+          provider: p,
+          service: s,
+          key: `${p.id}:${s.id || s.name}`,
+        })
+      }
+    }
+
+    if (!queryFromUrl) return rows
+    const qLower = queryFromUrl.toLowerCase()
+    const qNorm = normalizeForSearch(queryFromUrl)
+    return rows.filter(({ provider: p, service: s }) => {
       const name = (p.users?.display_name || '').toLowerCase()
       const tags = (p.tags || []).join(' ').toLowerCase()
       const bio = (p.bio || '').toLowerCase()
-      const combined = `${name} ${tags} ${bio}`
-      if (combined.includes(queryFromUrl.toLowerCase())) return true
-      return normalizeForSearch(combined).includes(normalizedQuery)
+      const serviceName = (s.name || '').toLowerCase()
+      const optionNames = (s.service_options || []).map(o => o.name || '').join(' ').toLowerCase()
+      const combined = `${name} ${tags} ${bio} ${serviceName} ${optionNames}`
+      if (combined.includes(qLower)) return true
+      return normalizeForSearch(combined).includes(qNorm)
     })
   }, [providers, queryFromUrl])
 
@@ -153,17 +167,15 @@ export default function Home({ session }) {
     navigate(`/?q=${encodeURIComponent(term)}`)
   }
 
-  function cardImage(p) {
-    return p.services?.find(s => s.image_url)?.image_url || null
+  function cardImage(service) {
+    return service?.image_url || null
   }
 
-  function cardPrice(p) {
+  function cardPrice(service) {
     const prices = []
-    ;(p.services || []).forEach(s => {
-      if (s.price != null) prices.push(Number(s.price))
-      ;(s.service_options || []).forEach(opt => {
-        if (opt.price != null) prices.push(Number(opt.price))
-      })
+    if (service?.price != null) prices.push(Number(service.price))
+    ;(service?.service_options || []).forEach((opt) => {
+      if (opt.price != null) prices.push(Number(opt.price))
     })
     if (prices.length === 0) return null
     const min = Math.min(...prices)
@@ -171,17 +183,23 @@ export default function Home({ session }) {
     return max > min ? `$${min}-${max}` : `$${Number(min).toFixed(0)}`
   }
 
-  function renderServiceCard(p) {
-    const img = cardImage(p)
+  function renderServiceCard(card) {
+    const p = card.provider
+    const s = card.service
+    const img = cardImage(s)
     const tags = (p.tags || []).slice(0, 2)
-    const priceStr = cardPrice(p)
-    const serviceName = (p.services && p.services[0] && p.services[0].name) ? p.services[0].name : (p.users?.display_name || 'Provider')
+    const priceStr = cardPrice(s)
+    const serviceName = s?.name || (p.users?.display_name || 'Provider')
     const displayName = p.users?.display_name || 'Provider'
     const avatarUrl = p.users?.avatar_url
     const initials = (displayName || 'P').slice(0, 2).toUpperCase()
 
     return (
-      <Link key={p.id} to={`/provider/${p.id}`} className="figma-service-card">
+      <Link
+        key={card.key}
+        to={`/provider/${p.id}?service=${encodeURIComponent(s.id)}`}
+        className="figma-service-card"
+      >
         <div className="figma-service-card-img" style={img ? { backgroundImage: `url(${img})` } : {}}>
           {!img && <div style={{ width: '100%', height: '100%', background: '#c4c4c4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontSize: 48 }}>{(displayName || 'P')[0]}</div>}
         </div>
@@ -249,7 +267,7 @@ export default function Home({ session }) {
             <p className="figma-empty figma-upcoming-alert" role="alert">{homeApptError}</p>
           )}
           {upcomingAppointments.length === 0 ? (
-            <p className="figma-empty">No upcoming appointments. <Link to="/discover">Find a service</Link></p>
+            <p className="figma-empty">No upcoming appointments. <Link to="/services/all">Find a service</Link></p>
           ) : (
             <div className="figma-upcoming-cards">
               {upcomingAppointments.map((appt) => {
@@ -328,13 +346,13 @@ export default function Home({ session }) {
         <section className="figma-section">
           <div className="figma-section-head">
             <h2 className="figma-section-title">Popular with friends</h2>
-            <Link to="/discover" className="figma-section-more">See more</Link>
+            <Link to="/services/all" className="figma-section-more">See more</Link>
           </div>
-          {loading ? <div className="figma-loading"><div className="spinner" /></div> : filtered.length === 0 ? (
+          {loading ? <div className="figma-loading"><div className="spinner" /></div> : serviceCards.length === 0 ? (
             <p className="figma-empty">No providers found. Try different filters or be the first to offer a service!</p>
           ) : (
             <div className="figma-cards-scroll">
-              {filtered.map(p => renderServiceCard(p))}
+              {serviceCards.map(card => renderServiceCard(card))}
             </div>
           )}
         </section>
@@ -355,11 +373,11 @@ export default function Home({ session }) {
         <section className="figma-section figma-section-tight">
           <div className="figma-section-head">
             <h2 className="figma-section-title">Suggested For you</h2>
-            <Link to="/discover" className="figma-section-more">See more</Link>
+            <Link to="/services/all" className="figma-section-more">See more</Link>
           </div>
-          {!loading && filtered.length > 0 && (
+          {!loading && serviceCards.length > 0 && (
             <div className="figma-cards-scroll">
-              {filtered.slice(0, 6).map(p => renderServiceCard(p))}
+              {serviceCards.slice(0, 6).map(card => renderServiceCard(card))}
             </div>
           )}
         </section>
@@ -368,11 +386,11 @@ export default function Home({ session }) {
         <section className="figma-section figma-section-tight">
           <div className="figma-section-head">
             <h2 className="figma-section-title">Recently Viewed</h2>
-            <Link to="/discover" className="figma-section-more">See more</Link>
+            <Link to="/services/all" className="figma-section-more">See more</Link>
           </div>
-          {!loading && filtered.length > 0 && (
+          {!loading && serviceCards.length > 0 && (
             <div className="figma-cards-scroll">
-              {filtered.slice(2, 8).map(p => renderServiceCard(p))}
+              {serviceCards.slice(2, 8).map(card => renderServiceCard(card))}
             </div>
           )}
         </section>

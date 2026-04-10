@@ -50,6 +50,7 @@
   gap: 12px;
 }
 .figma-listing .listing-gallery-main {
+  position: relative;
   aspect-ratio: 1;
   border-radius: 8px;
   background: #e2e2e2;
@@ -57,6 +58,34 @@
   background-position: center;
   border: 1px solid rgba(62, 78, 71, 0.2);
   overflow: hidden;
+}
+
+.figma-listing .listing-gallery-favorite-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.94);
+  color: #212121;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+  transition: color 0.15s ease, transform 0.12s ease;
+}
+
+.figma-listing .listing-gallery-favorite-btn:hover {
+  transform: scale(1.05);
+}
+
+.figma-listing .listing-gallery-favorite-btn--on {
+  color: #b91c1c;
 }
 .figma-listing .listing-gallery-placeholder {
   width: 100%;
@@ -138,13 +167,18 @@
   border-radius: 8px;
   font-size: 0.875rem;
   font-weight: 500;
+  font-family: inherit;
+  line-height: 1.25;
   cursor: pointer;
   border: 1.5px solid var(--figma-dark);
   background: transparent;
   color: var(--figma-dark);
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
 }
-.figma-listing .listing-friend-btn:hover,
+.figma-listing .listing-friend-btn:hover:not(:disabled),
 .figma-listing .listing-message-btn-inline:hover {
   background: var(--figma-dark);
   color: var(--figma-card);
@@ -153,8 +187,24 @@
   background: var(--figma-dark);
   color: var(--figma-card);
 }
+.figma-listing .listing-friend-btn-active:hover:not(:disabled) {
+  background: var(--figma-dark);
+  color: var(--figma-card);
+}
 .figma-listing .listing-friend-btn-pending {
-  opacity: 0.5;
+  opacity: 1;
+  border-color: #c8c8c8;
+  color: #9a9a9a;
+  cursor: default;
+  background: transparent;
+}
+.figma-listing .listing-friend-btn-pending:hover:not(:disabled) {
+  background: transparent;
+  color: #9a9a9a;
+  border-color: #c8c8c8;
+}
+.figma-listing .listing-friend-btn:disabled {
+  cursor: default;
 }
 
 /* Title */

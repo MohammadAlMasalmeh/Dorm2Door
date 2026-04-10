@@ -7,11 +7,14 @@ import ProviderProfile from './pages/ProviderProfile'
 import BookAppointment from './pages/BookAppointment'
 import Appointments from './pages/Appointments'
 import ProviderSetup from './pages/ProviderSetup'
+import CreateListing from './pages/CreateListing'
 import Profile from './pages/Profile'
 import UserProfile from './pages/UserProfile'
 import Messages from './pages/Messages'
 import Discover from './pages/Discover'
 import Services from './pages/Services'
+import ServicesAvailability from './pages/ServicesAvailability'
+import AllServices from './pages/AllServices'
 import Nav from './components/Nav'
 
 export default function App() {
@@ -96,13 +99,20 @@ export default function App() {
           <Route path="/book/:providerId/:serviceId" element={<BookAppointment session={session} />} />
           <Route path="/appointments" element={<Appointments session={session} userProfile={userProfile} />} />
           <Route path="/my-services" element={<ProviderSetup session={session} userProfile={userProfile} onUpdate={() => fetchProfile(session.user.id)} />} />
+          <Route path="/my-services/new" element={<CreateListing session={session} userProfile={userProfile} onUpdate={() => fetchProfile(session.user.id)} />} />
+          <Route path="/my-services/edit/:serviceId" element={<CreateListing session={session} userProfile={userProfile} onUpdate={() => fetchProfile(session.user.id)} />} />
           <Route path="/profile" element={<Profile session={session} userProfile={userProfile} onUpdate={() => fetchProfile(session.user.id)} />} />
           <Route path="/messages" element={<Messages session={session} userProfile={userProfile} />} />
           <Route path="/messages/:conversationId" element={<Messages session={session} userProfile={userProfile} />} />
           <Route path="/discover" element={<Discover />} />
+          <Route path="/services/all" element={<AllServices />} />
           <Route
             path="/services/stats"
             element={(userProfile?.role === 'provider' || session?.user?.user_metadata?.role === 'provider') ? <Services session={session} userProfile={userProfile} /> : <Navigate to="/" replace />}
+          />
+          <Route
+            path="/services/availability"
+            element={(userProfile?.role === 'provider' || session?.user?.user_metadata?.role === 'provider') ? <ServicesAvailability /> : <Navigate to="/" replace />}
           />
           <Route path="/services" element={(userProfile?.role === 'provider' || session?.user?.user_metadata?.role === 'provider') ? <Services session={session} userProfile={userProfile} /> : <Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" />} />

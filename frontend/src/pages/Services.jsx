@@ -37,6 +37,7 @@ export default function Services({ session, userProfile }) {
   const [providerIncoming, setProviderIncoming] = useState([])
   const [myServices, setMyServices] = useState([])
   const [stats, setStats] = useState({ servicesProvided: 0, revenue: 0 })
+  const [totalStats, setTotalStats] = useState({ servicesProvided: 0, revenue: 0 })
   const [avgReview, setAvgReview] = useState(null)
   const [serviceMetrics, setServiceMetrics] = useState({})
   const [serviceRatings, setServiceRatings] = useState({})
@@ -46,6 +47,8 @@ export default function Services({ session, userProfile }) {
   const [customerReviewAppt, setCustomerReviewAppt] = useState(null)
   const [weekLabel] = useState(() => formatWeekRangeLabel())
   const [myLocation, setMyLocation] = useState('')
+  const [ratedConsumerIds, setRatedConsumerIds] = useState(() => new Set())
+  const [apptTab, setApptTab] = useState('upcoming')
   const location = useLocation()
   const navigate = useNavigate()
   const isStatsView = location.pathname === '/services/stats'
@@ -63,6 +66,8 @@ export default function Services({ session, userProfile }) {
   const loadDashboard = useCallback(async () => {
     if (!session?.user?.id || !isProvider) {
       setLoading(false)
+      setRatedConsumerIds(new Set())
+      setTotalStats({ revenue: 0, servicesProvided: 0 })
       return
     }
     const uid = session.user.id
@@ -77,6 +82,7 @@ export default function Services({ session, userProfile }) {
       providerResFirst,
       completedRes,
       reviewsListRes,
+      myCustomerRatingsRes,
     ] = await Promise.all([
       supabase
         .from('appointments')
@@ -102,6 +108,7 @@ export default function Services({ session, userProfile }) {
         .eq('provider_id', uid)
         .eq('status', 'completed'),
       supabase.from('reviews').select('rating, appointment_id').eq('provider_id', uid),
+      supabase.from('customer_reviews').select('consumer_id').eq('provider_id', uid),
     ])
 
     let providerRes = providerResFirst
@@ -136,16 +143,20 @@ export default function Services({ session, userProfile }) {
     const ar = pr?.avg_rating
     setAvgReview(ar != null && Number(ar) > 0 ? Number(ar) : null)
 
+    const completedAll = completedRes.data || []
     const metrics = {}
-    ;(completedRes.data || []).forEach((a) => {
+    let totalRevenueAll = 0
+    completedAll.forEach((a) => {
+      const p = a.service_options?.price != null ? a.service_options.price : a.services?.price
+      if (p != null) totalRevenueAll += Number(p)
       const sid = a.service_id
       if (!sid) return
       if (!metrics[sid]) metrics[sid] = { revenue: 0, count: 0 }
       metrics[sid].count += 1
-      const p = a.service_options?.price != null ? a.service_options.price : a.services?.price
       if (p != null) metrics[sid].revenue += Number(p)
     })
     setServiceMetrics(metrics)
+    setTotalStats({ revenue: totalRevenueAll, servicesProvided: completedAll.length })
 
     const revRows = reviewsListRes.data || []
     const apptIds = [...new Set(revRows.map((r) => r.appointment_id).filter(Boolean))]
@@ -170,6 +181,10 @@ export default function Services({ session, userProfile }) {
     })
     setServiceRatings(avgByService)
     setServiceReviewCounts(reviewCounts)
+
+    setRatedConsumerIds(
+      new Set((myCustomerRatingsRes.data || []).map((r) => r.consumer_id).filter(Boolean)),
+    )
 
     setLoading(false)
   }, [session?.user?.id, isProvider])
@@ -220,107 +235,166 @@ export default function Services({ session, userProfile }) {
     [dashboardAppointments],
   )
 
-  const statsSection = (
-    <section id="stats" className="services-section services-section-stats">
-      <h1 className="services-heading">Weekly Stats</h1>
-      <div className="services-stats-row">
-        <div className="services-stat-card services-stat-card-bordered">
-          <p className="services-stat-label-dark">Revenue</p>
-          <p className="services-stat-value-dark">${stats.revenue.toFixed(2)}</p>
-          <p className="services-stat-date-dark">{weekLabel}</p>
+  const statsSections = (
+    <>
+      <section id="stats" className="services-section services-section-stats">
+        <h1 className="services-heading">Weekly Stats</h1>
+        <div className="services-stats-row">
+          <div className="services-stat-card services-stat-card-bordered">
+            <p className="services-stat-label-dark">Revenue</p>
+            <p className="services-stat-value-dark">${stats.revenue.toFixed(2)}</p>
+            <p className="services-stat-date-dark">{weekLabel}</p>
+          </div>
+          <div className="services-stat-card services-stat-card-bordered">
+            <p className="services-stat-label-dark">Services Provided</p>
+            <p className="services-stat-value-dark">{stats.servicesProvided}</p>
+            <p className="services-stat-date-dark">{weekLabel}</p>
+          </div>
+          <div className="services-stat-card services-stat-card-bordered">
+            <p className="services-stat-label-dark">Average Review</p>
+            <p className="services-stat-value-dark">{avgReview != null ? avgReview.toFixed(1) : '—'}</p>
+            <p className="services-stat-date-dark">{weekLabel}</p>
+          </div>
         </div>
-        <div className="services-stat-card services-stat-card-bordered">
-          <p className="services-stat-label-dark">Services Provided</p>
-          <p className="services-stat-value-dark">{stats.servicesProvided}</p>
-          <p className="services-stat-date-dark">{weekLabel}</p>
+      </section>
+      <section className="services-section services-section-stats services-section-total-stats" aria-labelledby="total-stats-heading">
+        <h2 id="total-stats-heading" className="services-heading">
+          Total Stats
+        </h2>
+        <div className="services-stats-row">
+          <div className="services-stat-card services-stat-card-bordered">
+            <p className="services-stat-label-dark">Revenue</p>
+            <p className="services-stat-value-dark">${totalStats.revenue.toFixed(2)}</p>
+            <p className="services-stat-date-dark">All time</p>
+          </div>
+          <div className="services-stat-card services-stat-card-bordered">
+            <p className="services-stat-label-dark">Services Provided</p>
+            <p className="services-stat-value-dark">{totalStats.servicesProvided}</p>
+            <p className="services-stat-date-dark">All time</p>
+          </div>
+          <div className="services-stat-card services-stat-card-bordered">
+            <p className="services-stat-label-dark">Average Review</p>
+            <p className="services-stat-value-dark">{avgReview != null ? avgReview.toFixed(1) : '—'}</p>
+            <p className="services-stat-date-dark">All time</p>
+          </div>
         </div>
-        <div className="services-stat-card services-stat-card-bordered">
-          <p className="services-stat-label-dark">Average Review</p>
-          <p className="services-stat-value-dark">{avgReview != null ? avgReview.toFixed(1) : '—'}</p>
-          <p className="services-stat-date-dark">{weekLabel}</p>
-        </div>
-      </div>
-    </section>
+      </section>
+    </>
   )
 
   return (
     <ProviderServicesShell>
       {isStatsView ? (
-        statsSection
+        statsSections
       ) : (
         <>
         <section className="services-section services-section-appointments">
           <h1 className="services-heading">Appointments</h1>
-          <p className="services-dashboard-hint">
-            <strong>Pending</strong> → accept or decline (declined requests disappear). Accepted bookings move to <strong>Upcoming</strong>; mark complete when done, then rate the customer under <strong>Completed</strong>. Customers use <strong>Bookings</strong> in the top nav for their side.
-          </p>
           {actionError ? <p className="services-action-error" role="alert">{actionError}</p> : null}
           {loading ? (
             <p className="services-panel-empty-dark">Loading…</p>
           ) : (
-            <div className="bookings-columns services-provider-appt-columns services-provider-appt-three">
-              <section className="bookings-col">
-                <h3 className="bookings-col-title">Pending requests</h3>
-                <p className="bookings-col-hint services-appt-col-hint">Accept moves the booking to Upcoming. Decline removes it from your dashboard.</p>
-                <div className="bookings-cards">
-                  {pendingQueue.length === 0 ? (
-                    <p className="bookings-empty">No pending requests.</p>
-                  ) : (
-                    pendingQueue.map((appt) => (
-                      <ApptCard
-                        key={appt.id}
-                        appt={appt}
-                        variant="pending"
-                        helpLinkTo="/services"
-                        providerLocationOverride={myLocation}
-                        onAccept={(id) => updateAppointmentStatus(id, 'confirmed')}
-                        onDecline={(id) => updateAppointmentStatus(id, 'cancelled')}
-                      />
-                    ))
-                  )}
+            <>
+              <div className="services-appt-tabs services-appt-tabs--provider" role="tablist" aria-label="Appointments by status">
+                <button
+                  type="button"
+                  role="tab"
+                  id="services-tab-upcoming"
+                  aria-selected={apptTab === 'upcoming'}
+                  aria-controls="services-panel-appt"
+                  className={`services-appt-tab${apptTab === 'upcoming' ? ' services-appt-tab-active' : ''}`}
+                  onClick={() => setApptTab('upcoming')}
+                >
+                  Upcoming
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  id="services-tab-pending"
+                  aria-selected={apptTab === 'pending'}
+                  aria-controls="services-panel-appt"
+                  className={`services-appt-tab${apptTab === 'pending' ? ' services-appt-tab-active' : ''}`}
+                  onClick={() => setApptTab('pending')}
+                >
+                  Pending requests
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  id="services-tab-completed"
+                  aria-selected={apptTab === 'completed'}
+                  aria-controls="services-panel-appt"
+                  className={`services-appt-tab${apptTab === 'completed' ? ' services-appt-tab-active' : ''}`}
+                  onClick={() => setApptTab('completed')}
+                >
+                  Completed
+                </button>
+              </div>
+              <div
+                id="services-panel-appt"
+                role="tabpanel"
+                aria-labelledby={
+                  apptTab === 'pending'
+                    ? 'services-tab-pending'
+                    : apptTab === 'upcoming'
+                      ? 'services-tab-upcoming'
+                      : 'services-tab-completed'
+                }
+                className="services-provider-appt-tab-panel"
+              >
+                <div className="services-appt-cards-row services-provider-appt-cards">
+                  {apptTab === 'pending' &&
+                    (pendingQueue.length === 0 ? (
+                      <p className="bookings-empty services-provider-appt-empty">No pending requests.</p>
+                    ) : (
+                      pendingQueue.map((appt) => (
+                        <ApptCard
+                          key={appt.id}
+                          appt={appt}
+                          variant="pending"
+                          helpLinkTo="/services"
+                          providerLocationOverride={myLocation}
+                          ratedConsumerIds={ratedConsumerIds}
+                          onAccept={(id) => updateAppointmentStatus(id, 'confirmed')}
+                          onDecline={(id) => updateAppointmentStatus(id, 'cancelled')}
+                        />
+                      ))
+                    ))}
+                  {apptTab === 'upcoming' &&
+                    (upcomingConfirmed.length === 0 ? (
+                      <p className="bookings-empty services-provider-appt-empty">No upcoming appointments.</p>
+                    ) : (
+                      upcomingConfirmed.map((appt) => (
+                        <ApptCard
+                          key={appt.id}
+                          appt={appt}
+                          variant="pending"
+                          helpLinkTo="/services"
+                          providerLocationOverride={myLocation}
+                          ratedConsumerIds={ratedConsumerIds}
+                          onComplete={(id) => updateAppointmentStatus(id, 'completed')}
+                        />
+                      ))
+                    ))}
+                  {apptTab === 'completed' &&
+                    (completedIncoming.length === 0 ? (
+                      <p className="bookings-empty services-provider-appt-empty">No completed appointments yet.</p>
+                    ) : (
+                      completedIncoming.map((appt) => (
+                        <ApptCard
+                          key={appt.id}
+                          appt={appt}
+                          variant="pending"
+                          helpLinkTo="/services"
+                          providerLocationOverride={myLocation}
+                          ratedConsumerIds={ratedConsumerIds}
+                          onRateCustomer={setCustomerReviewAppt}
+                        />
+                      ))
+                    ))}
                 </div>
-              </section>
-              <section className="bookings-col">
-                <h3 className="bookings-col-title">Upcoming</h3>
-                <p className="bookings-col-hint services-appt-col-hint">Confirmed visits. Mark complete when the service is done.</p>
-                <div className="bookings-cards">
-                  {upcomingConfirmed.length === 0 ? (
-                    <p className="bookings-empty">No upcoming appointments.</p>
-                  ) : (
-                    upcomingConfirmed.map((appt) => (
-                      <ApptCard
-                        key={appt.id}
-                        appt={appt}
-                        variant="pending"
-                        helpLinkTo="/services"
-                        providerLocationOverride={myLocation}
-                        onComplete={(id) => updateAppointmentStatus(id, 'completed')}
-                      />
-                    ))
-                  )}
-                </div>
-              </section>
-              <section className="bookings-col">
-                <h3 className="bookings-col-title">Completed</h3>
-                <p className="bookings-col-hint services-appt-col-hint">Rate customers after completed visits (optional).</p>
-                <div className="bookings-cards">
-                  {completedIncoming.length === 0 ? (
-                    <p className="bookings-empty">No completed appointments yet.</p>
-                  ) : (
-                    completedIncoming.map((appt) => (
-                      <ApptCard
-                        key={appt.id}
-                        appt={appt}
-                        variant="pending"
-                        helpLinkTo="/services"
-                        providerLocationOverride={myLocation}
-                        onRateCustomer={setCustomerReviewAppt}
-                      />
-                    ))
-                  )}
-                </div>
-              </section>
-            </div>
+              </div>
+            </>
           )}
         </section>
 
@@ -363,7 +437,7 @@ export default function Services({ session, userProfile }) {
                     </div>
                   </div>
                   <Link
-                    to={`/my-services?edit=${svc.id}`}
+                    to={`/my-services/edit/${svc.id}`}
                     className="services-your-card-dark-edit"
                     aria-label={`Edit ${svc.name}`}
                     onClick={(e) => e.stopPropagation()}
@@ -371,7 +445,7 @@ export default function Services({ session, userProfile }) {
                     <PencilIcon />
                   </Link>
                   <Link
-                    to={`/my-services?edit=${svc.id}`}
+                    to={`/my-services/edit/${svc.id}`}
                     className="services-your-card-dark-more"
                     onClick={(e) => e.stopPropagation()}
                   >

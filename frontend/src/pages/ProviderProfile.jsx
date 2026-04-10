@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useState, useEffect, useMemo } from 'react'
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 
 function Stars({ value, size = '1rem' }) {
@@ -22,9 +22,28 @@ function formatReviewDate(iso) {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+/** Ordered unique slides; each image maps to the service it belongs to (for favorites). */
+function buildPortfolioSlides(services) {
+  if (!services?.length) return []
+  const slides = []
+  const seen = new Set()
+  for (const s of services) {
+    const urls =
+      s.image_urls && s.image_urls.length > 0 ? s.image_urls : s.image_url ? [s.image_url] : []
+    for (const url of urls) {
+      if (!url || seen.has(url)) continue
+      seen.add(url)
+      slides.push({ url, serviceId: s.id })
+    }
+  }
+  return slides
+}
+
 export default function ProviderProfile({ session }) {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const focusServiceId = searchParams.get('service')
   const [provider, setProvider] = useState(null)
   const [reviews, setReviews] = useState([])
   const [reviewsError, setReviewsError] = useState('')
@@ -33,10 +52,15 @@ export default function ProviderProfile({ session }) {
   const [friendStatus, setFriendStatus] = useState('none')
   const [friendActionLoading, setFriendActionLoading] = useState(false)
   const [reviewsExpanded, setReviewsExpanded] = useState(false)
+  const [favoriteServiceIds, setFavoriteServiceIds] = useState(() => new Set())
 
   useEffect(() => {
     setReviewsExpanded(false)
   }, [id])
+
+  useEffect(() => {
+    setSelectedImage(0)
+  }, [focusServiceId])
 
   useEffect(() => {
     if (!id) return
@@ -72,6 +96,41 @@ export default function ProviderProfile({ session }) {
     if (!session?.user?.id || session.user.id === id) return
     checkFriendship()
   }, [id, session?.user?.id])
+
+  useEffect(() => {
+    if (!session?.user?.id || session.user.id === id || !provider?.services?.length) {
+      if (!session?.user?.id || session.user.id === id) setFavoriteServiceIds(new Set())
+      return
+    }
+    const ids = provider.services.map((s) => s.id)
+    let cancelled = false
+    void supabase
+      .from('service_favorites')
+      .select('service_id')
+      .eq('user_id', session.user.id)
+      .in('service_id', ids)
+      .then(({ data }) => {
+        if (cancelled) return
+        setFavoriteServiceIds(new Set((data || []).map((r) => r.service_id)))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [session?.user?.id, id, provider?.services])
+
+  const focusedServices = useMemo(() => {
+    const list = provider?.services || []
+    if (!focusServiceId) return list
+    const match = list.find((s) => String(s.id) === String(focusServiceId))
+    return match ? [match] : list
+  }, [provider?.services, focusServiceId])
+
+  const portfolioSlides = useMemo(() => buildPortfolioSlides(focusedServices), [focusedServices])
+
+  useEffect(() => {
+    if (portfolioSlides.length === 0) return
+    setSelectedImage((i) => Math.min(i, portfolioSlides.length - 1))
+  }, [portfolioSlides.length])
 
   async function checkFriendship() {
     const uid = session.user.id
@@ -116,7 +175,7 @@ export default function ProviderProfile({ session }) {
   if (loading) return <div className="loading-wrap"><div className="spinner" /></div>
   if (!provider) {
     if (session?.user?.id === id) {
-      navigate('/my-services?setup=1', { replace: true })
+      navigate('/profile?providerSetup=1', { replace: true })
       return null
     }
     return (
@@ -130,15 +189,31 @@ export default function ProviderProfile({ session }) {
 
   const name = provider.users?.display_name || 'Provider'
   const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-  const services = provider.services || []
   const isOwn = session?.user?.id === id
-  const portfolioImages = Array.from(new Set(
-    services.flatMap(s => {
-      const urls = (s.image_urls && s.image_urls.length > 0) ? s.image_urls : (s.image_url ? [s.image_url] : [])
-      return urls
-    }).filter(Boolean)
-  ))
-  const mainImage = portfolioImages[selectedImage] || portfolioImages[0]
+  const galleryIndex = Math.min(selectedImage, Math.max(0, portfolioSlides.length - 1))
+  const mainSlide = portfolioSlides[galleryIndex]
+  const mainImage = mainSlide?.url
+  const favoriteTargetServiceId = mainSlide?.serviceId
+
+  async function handleToggleFavorite() {
+    if (!session?.user?.id || isOwn || !favoriteTargetServiceId) return
+    const uid = session.user.id
+    const sid = favoriteTargetServiceId
+    const isFav = favoriteServiceIds.has(sid)
+    if (isFav) {
+      const { error } = await supabase.from('service_favorites').delete().eq('user_id', uid).eq('service_id', sid)
+      if (error) return
+      setFavoriteServiceIds((prev) => {
+        const next = new Set(prev)
+        next.delete(sid)
+        return next
+      })
+    } else {
+      const { error } = await supabase.from('service_favorites').insert({ user_id: uid, service_id: sid })
+      if (error) return
+      setFavoriteServiceIds((prev) => new Set(prev).add(sid))
+    }
+  }
   const reviewCount = reviews.length
   const avgFromReviews = reviewCount > 0
     ? reviews.reduce((sum, r) => sum + (Number(r.rating) || 0), 0) / reviewCount
@@ -162,14 +237,14 @@ export default function ProviderProfile({ session }) {
   }))
   const maxBucket = Math.max(...ratingBuckets.map(b => b.count), 1)
 
-  const allOptions = services.flatMap(s =>
+  const allOptions = focusedServices.flatMap(s =>
     (s.service_options && s.service_options.length) > 0
-      ? s.service_options.map(opt => ({ ...opt, serviceName: s.name, durationMin: s.duration_minutes }))
-      : [{ id: s.id, name: s.name, price: s.price, serviceName: s.name, durationMin: s.duration_minutes }]
+      ? s.service_options.map(opt => ({ ...opt, serviceName: s.name, durationMin: s.duration_minutes, serviceId: s.id }))
+      : [{ id: s.id, name: s.name, price: s.price, serviceName: s.name, durationMin: s.duration_minutes, serviceId: s.id }]
   )
   const primaryTitle = allOptions[0]
-    ? `${allOptions[0].serviceName || services[0]?.name || name}`
-    : (services[0]?.name || name)
+    ? `${allOptions[0].serviceName || focusedServices[0]?.name || name}`
+    : (focusedServices[0]?.name || name)
 
   const friendBtnLabel = {
     none: 'Add Friend',
@@ -190,17 +265,37 @@ export default function ProviderProfile({ session }) {
           {!mainImage && (
             <div className="listing-gallery-placeholder">{thumbPlaceholderSvg}</div>
           )}
+          {!isOwn && session && favoriteTargetServiceId ? (
+            <button
+              type="button"
+              className={`listing-gallery-favorite-btn${favoriteServiceIds.has(favoriteTargetServiceId) ? ' listing-gallery-favorite-btn--on' : ''}`}
+              onClick={() => void handleToggleFavorite()}
+              aria-label={
+                favoriteServiceIds.has(favoriteTargetServiceId)
+                  ? 'Remove from favorites'
+                  : 'Add to favorites'
+              }
+              aria-pressed={favoriteServiceIds.has(favoriteTargetServiceId)}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
+                <path
+                  fill="currentColor"
+                  d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+                />
+              </svg>
+            </button>
+          ) : null}
         </div>
         <div className="listing-gallery-thumbs">
-          {[0, 1, 2].map(i => (
+          {[0, 1, 2].map((i) => (
             <button
               key={i}
               type="button"
-              className={`listing-gallery-thumb${selectedImage === i ? ' active' : ''}`}
-              onClick={() => portfolioImages[i] && setSelectedImage(i)}
-              style={portfolioImages[i] ? { backgroundImage: `url(${portfolioImages[i]})` } : {}}
+              className={`listing-gallery-thumb${galleryIndex === i ? ' active' : ''}`}
+              onClick={() => portfolioSlides[i] && setSelectedImage(i)}
+              style={portfolioSlides[i] ? { backgroundImage: `url(${portfolioSlides[i].url})` } : {}}
             >
-              {!portfolioImages[i] && thumbPlaceholderSvg}
+              {!portfolioSlides[i] && thumbPlaceholderSvg}
             </button>
           ))}
         </div>
@@ -225,8 +320,6 @@ export default function ProviderProfile({ session }) {
                 </button>
               </>
             )}
-            <button type="button" className="listing-icon-btn" aria-label="Share">&loz;</button>
-            <button type="button" className="listing-icon-btn" aria-label="Save">&hearts;</button>
           </div>
           <h1 className="listing-title">{primaryTitle}</h1>
           <div className="listing-tags">
@@ -301,7 +394,7 @@ export default function ProviderProfile({ session }) {
                       <Link to={`/book/${id}/${opt.id}`} className="listing-service-select">Select</Link>
                     )}
                     {isOwn && (
-                      <Link to={`/my-services?edit=${opt.id}`} className="listing-service-select">Edit</Link>
+                      <Link to={`/my-services/edit/${opt.serviceId}`} className="listing-service-select">Edit</Link>
                     )}
                   </div>
                 </div>

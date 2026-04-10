@@ -7,14 +7,14 @@
   --ps-text: #212121;
   --ps-muted: rgba(33, 33, 33, 0.6);
   --ps-border: rgba(62, 78, 71, 0.2);
-  min-height: 100vh;
-  background: var(--ps-bg);
-  padding: 40px 24px 56px;
+  min-height: 0;
+  background: transparent;
+  padding: 0;
 }
 
 .provider-setup-header {
-  max-width: 920px;
-  margin: 0 auto 36px;
+  max-width: none;
+  margin: 0 0 36px;
 }
 
 .provider-setup-title {
@@ -33,8 +33,8 @@
 }
 
 .provider-setup-layout {
-  max-width: 920px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 28px;
@@ -560,9 +560,50 @@
   max-width: 560px;
 }
 
+.provider-setup-layout--single {
+  grid-template-columns: 1fr;
+  max-width: 720px;
+  margin: 0;
+}
+
+.provider-setup-page--portfolio-only {
+  max-width: 900px;
+}
+
+.provider-setup-add-btn {
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+a.provider-setup-service-card-edit {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.provider-setup-empty-btn-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 8px;
+  padding: 12px 22px;
+  border-radius: 12px;
+  background: var(--ps-accent);
+  color: var(--ps-card) !important;
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 0.9375rem;
+}
+
+.provider-setup-empty-btn-link:hover {
+  background: #b56a42;
+  color: var(--ps-card) !important;
+}
+
 .provider-setup-back-row {
   max-width: 560px;
-  margin: 0 auto 20px;
+  margin: 0 0 20px;
 }
 
 .provider-setup-back-link {

@@ -26,6 +26,10 @@ export function normalizeApptStatus(appt) {
   return String(s).trim().toLowerCase()
 }
 
+export function apptProviderId(appt) {
+  return appt?.provider_id ?? appt?.providers?.id ?? null
+}
+
 export function ReviewModal({ appt, onClose, onSubmit }) {
   const [rating, setRating] = useState(5)
   const [comment, setComment] = useState('')
@@ -51,7 +55,18 @@ export function ReviewModal({ appt, onClose, onSubmit }) {
       setLoading(false)
       return
     }
-    const providerId = appt.providers?.id ?? row.provider_id
+    const providerId = apptProviderId(appt) ?? row.provider_id
+    const { data: existingRev } = await supabase
+      .from('reviews')
+      .select('id')
+      .eq('consumer_id', appt.consumer_id)
+      .eq('provider_id', providerId)
+      .maybeSingle()
+    if (existingRev) {
+      setError('You already left a review for this provider.')
+      setLoading(false)
+      return
+    }
     const { error: insertErr } = await supabase.from('reviews').insert({
       appointment_id: appt.id,
       provider_id: providerId,
@@ -59,7 +74,11 @@ export function ReviewModal({ appt, onClose, onSubmit }) {
       rating,
       comment,
     })
-    if (insertErr) { setError(insertErr.message); setLoading(false); return }
+    if (insertErr) {
+      setError(insertErr.code === '23505' ? 'You already left a review for this provider.' : insertErr.message)
+      setLoading(false)
+      return
+    }
     setLoading(false)
     onSubmit()
   }
@@ -110,14 +129,30 @@ export function CustomerReviewModal({ appt, session, onClose, onSubmit }) {
   async function handleSubmit(e) {
     e.preventDefault()
     setError(''); setLoading(true)
+    const providerId = session?.user?.id
+    const { data: existing } = await supabase
+      .from('customer_reviews')
+      .select('id')
+      .eq('provider_id', providerId)
+      .eq('consumer_id', appt.consumer_id)
+      .maybeSingle()
+    if (existing) {
+      setError('You already rated this customer.')
+      setLoading(false)
+      return
+    }
     const { error: err } = await supabase.from('customer_reviews').insert({
       appointment_id: appt.id,
       consumer_id: appt.consumer_id,
-      provider_id: session?.user?.id,
+      provider_id: providerId,
       rating,
       comment: comment.trim() || null,
     })
-    if (err) { setError(err.message); setLoading(false); return }
+    if (err) {
+      setError(err.code === '23505' ? 'You already rated this customer.' : err.message)
+      setLoading(false)
+      return
+    }
     setLoading(false)
     onSubmit()
   }
@@ -170,8 +205,15 @@ export function ApptCard({
   onRateCustomer,
   providerLocationOverride,
   helpLinkTo = '/appointments',
+  reviewedProviderIds,
+  ratedConsumerIds,
 }) {
   const st = normalizeApptStatus(appt)
+  const providerId = apptProviderId(appt)
+  const consumerAlreadyReviewedProvider =
+    reviewedProviderIds && providerId != null && reviewedProviderIds.has(providerId)
+  const providerAlreadyRatedCustomer =
+    ratedConsumerIds && appt.consumer_id != null && ratedConsumerIds.has(appt.consumer_id)
   const d = new Date(appt.scheduled_at)
   const dateStr = d.toLocaleString([], { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
   const providerName = appt.providers?.users?.display_name || appt.users?.display_name || '—'
@@ -215,6 +257,11 @@ export function ApptCard({
         </div>
       </div>
       <div className="bookings-card-actions">
+        {variant === 'cancelled' && (
+          <p className="bookings-card-hint" style={{ margin: 0, width: '100%', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+            This booking was cancelled.
+          </p>
+        )}
         {variant === 'upcoming' && st === 'pending' && (
           <>
             <p className="bookings-card-hint" style={{ width: '100%', margin: 0, fontSize: '0.875rem', color: 'var(--text-muted)' }}>
@@ -245,7 +292,12 @@ export function ApptCard({
             Status: {appt.status || 'unknown'}. Open <Link to={helpLinkTo}>Bookings</Link> after refreshing if this looks wrong.
           </p>
         )}
-        {variant === 'completed' && st === 'completed' && !appointmentHasConsumerReview(appt) && onReview && (
+        {variant === 'completed' && st === 'completed' && !appointmentHasConsumerReview(appt) && consumerAlreadyReviewedProvider && (
+          <span className="bookings-card-reviewed" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            You already reviewed this provider
+          </span>
+        )}
+        {variant === 'completed' && st === 'completed' && !appointmentHasConsumerReview(appt) && !consumerAlreadyReviewedProvider && onReview && (
           <button type="button" className="bookings-card-btn bookings-card-btn-confirm" onClick={() => onReview(appt)}>
             Leave a review
           </button>
@@ -264,7 +316,12 @@ export function ApptCard({
         {variant === 'pending' && st === 'confirmed' && onComplete && (
           <button type="button" className="bookings-card-btn bookings-card-btn-confirm" onClick={() => onComplete(appt.id)}>Mark complete</button>
         )}
-        {variant === 'pending' && st === 'completed' && !appointmentHasCustomerRating(appt) && onRateCustomer && (
+        {variant === 'pending' && st === 'completed' && !appointmentHasCustomerRating(appt) && providerAlreadyRatedCustomer && (
+          <span className="bookings-card-reviewed" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            You already rated this customer
+          </span>
+        )}
+        {variant === 'pending' && st === 'completed' && !appointmentHasCustomerRating(appt) && !providerAlreadyRatedCustomer && onRateCustomer && (
           <button type="button" className="bookings-card-btn bookings-card-btn-outline" onClick={() => onRateCustomer(appt)}>
             Rate customer
           </button>

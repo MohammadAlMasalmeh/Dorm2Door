@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 
 function ServicesIcon() {
@@ -55,10 +55,14 @@ function MapIcon() {
 }
 function BellIcon() {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-    </svg>
+    <img
+      src="/nav-icon-notifications.png"
+      alt=""
+      className="nav-stack-icon-img nav-stack-icon-notifications"
+      width={48}
+      height={48}
+      aria-hidden
+    />
   )
 }
 function ChatIcon() {
@@ -94,11 +98,6 @@ function timeAgo(ts) {
 }
 
 export default function Nav({ session, userProfile }) {
-  const location = useLocation()
-  const navigate = useNavigate()
-  const isLanding = location.pathname === '/'
-  const showMessagesSearch = location.pathname.startsWith('/messages')
-  const [globalSearch, setGlobalSearch] = useState('')
   const avatarUrl = userProfile?.avatar_url
   const initials = (userProfile?.display_name || session?.user?.email || '?')
     .split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -168,14 +167,8 @@ export default function Nav({ session, userProfile }) {
     setUnreadCount(c => Math.max(0, c - 1))
   }
 
-  function submitGlobalSearch(e) {
-    e.preventDefault()
-    const q = globalSearch.trim()
-    navigate(q ? `/discover?q=${encodeURIComponent(q)}` : '/discover')
-  }
-
   return (
-    <nav className={`nav nav-landing${showMessagesSearch ? ' nav-with-global-search' : ''}`}>
+    <nav className="nav nav-landing">
       <div className="nav-left">
         <Link to="/" className="nav-logo-wrap">
           <span className="nav-logo-tape" aria-hidden>
@@ -186,23 +179,6 @@ export default function Nav({ session, userProfile }) {
         <span className="nav-location">Austin, TX</span>
       </div>
 
-      {showMessagesSearch && (
-        <form className="nav-global-search" onSubmit={submitGlobalSearch} role="search">
-          <svg className="nav-global-search-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-            <circle cx="11" cy="11" r="7" />
-            <path d="M20 20l-4-4" strokeLinecap="round" />
-          </svg>
-          <input
-            type="search"
-            className="nav-global-search-input"
-            placeholder="Search for “Math tutoring”"
-            value={globalSearch}
-            onChange={e => setGlobalSearch(e.target.value)}
-            aria-label="Search services"
-          />
-        </form>
-      )}
-
       <div className="nav-right nav-right-stack">
         {((userProfile?.role === 'provider') || (session?.user?.user_metadata?.role === 'provider')) && (
           <NavLink to="/services" className={({ isActive }) => `nav-stack-item${isActive ? ' active' : ''}`}>
@@ -210,6 +186,11 @@ export default function Nav({ session, userProfile }) {
             <span>Services</span>
           </NavLink>
         )}
+
+        <NavLink to="/services/all" className={({ isActive }) => `nav-stack-item${isActive ? ' active' : ''}`}>
+          <StorefrontIcon />
+          <span>All Services</span>
+        </NavLink>
 
         <NavLink to="/discover" className={({ isActive }) => `nav-stack-item${isActive ? ' active' : ''}`}>
           <MapIcon />
@@ -228,10 +209,8 @@ export default function Nav({ session, userProfile }) {
           <span>Messages</span>
         </NavLink>
 
-        {!isLanding && (
-          <>
-            {/* Notifications bell with dropdown */}
-            <div className="nav-notif-wrap" ref={notifRef}>
+        {/* Notifications bell with dropdown */}
+        <div className="nav-notif-wrap" ref={notifRef}>
               <button
                 type="button"
                 className={`nav-stack-item${showNotifDropdown ? ' active' : ''}`}
@@ -315,9 +294,7 @@ export default function Nav({ session, userProfile }) {
                   </div>
                 </div>
               )}
-            </div>
-          </>
-        )}
+        </div>
 
         <NavLink to="/profile" className={({ isActive }) => `nav-stack-item${isActive ? ' active' : ''}`}>
           {avatarUrl ? (
@@ -327,15 +304,6 @@ export default function Nav({ session, userProfile }) {
           )}
           <span>Profile</span>
         </NavLink>
-        {!isLanding && (
-          <button
-            type="button"
-            className="nav-signout"
-            onClick={() => supabase.auth.signOut()}
-          >
-            Sign out
-          </button>
-        )}
       </div>
     </nav>
   )

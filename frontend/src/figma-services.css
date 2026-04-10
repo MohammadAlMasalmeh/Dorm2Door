@@ -88,6 +88,12 @@
   box-sizing: border-box;
 }
 
+/* My Services (/my-services): white content column like standard app pages */
+.services-page--white-main .services-main {
+  background: #fff;
+  min-height: 100vh;
+}
+
 .services-section {
   margin-bottom: 48px;
 }
@@ -97,6 +103,7 @@
 }
 
 .services-heading {
+  font-family: 'Satoshi', 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 32px;
   font-weight: 700;
   color: #212121;
@@ -109,13 +116,56 @@
   margin-bottom: 16px;
 }
 
-.services-provider-appt-columns {
-  margin-bottom: 8px;
+.services-provider-appt-tab-panel {
+  margin-top: 8px;
+  min-height: 120px;
 }
 
-.services-provider-appt-three {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
+/* Provider overview: appointment cards in a row under tabs */
+.services-provider-appt-cards .bookings-card {
+  flex: 1 1 280px;
+  max-width: 400px;
+  background: #fff;
+  border: 1px solid #3e4e47;
+}
+
+.services-provider-appt-empty {
+  flex: 1 1 100%;
+  width: 100%;
+  padding: 16px 0 8px;
+  color: rgba(33, 33, 33, 0.5);
+}
+
+/* Provider appointments tab bar — typography + states */
+.services-section-appointments .services-appt-tabs--provider {
+  gap: 32px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(40, 50, 45, 0.2);
+}
+
+.services-section-appointments .services-appt-tabs--provider .services-appt-tab {
+  font-family: 'Satoshi', 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 1.125rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: rgba(62, 78, 71, 0.55);
+  opacity: 1;
+  padding: 0 4px 14px;
+  margin-bottom: -1px;
+  border-bottom-width: 2px;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.services-section-appointments .services-appt-tabs--provider .services-appt-tab:hover {
+  opacity: 1;
+  color: #3e4e47;
+}
+
+.services-section-appointments .services-appt-tabs--provider .services-appt-tab-active {
+  font-weight: 600;
+  color: #212121;
+  border-bottom-color: #212121;
 }
 
 .services-appt-col-hint {
@@ -123,12 +173,6 @@
   font-size: 0.875rem;
   color: rgba(33, 33, 33, 0.65);
   line-height: 1.4;
-}
-
-@media (max-width: 1100px) {
-  .services-provider-appt-three {
-    grid-template-columns: 1fr;
-  }
 }
 
 .services-dashboard-hint {
@@ -155,6 +199,22 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 24px;
+}
+
+.services-section-total-stats {
+  margin-top: 48px;
+}
+
+/* Consumer /bookings — reuse appointment tab + card row */
+.bookings-section-appointments .services-heading {
+  margin-bottom: 16px;
+}
+
+@media (max-width: 900px) {
+  .bookings-section-appointments .services-appt-tabs--provider {
+    flex-wrap: wrap;
+    gap: 12px 20px;
+  }
 }
 
 .services-stat-card-bordered {
@@ -537,6 +597,123 @@
   color: #3e4e47;
 }
 
+.services-availability-subtitle {
+  margin-top: -8px;
+  margin-bottom: 18px;
+  color: rgba(33, 33, 33, 0.65);
+  font-size: 1rem;
+}
+
+.services-availability-alert {
+  background: #fff3f3;
+  border: 1px solid #e5bcbc;
+  color: #802a2a;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.services-availability-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.services-availability-btn {
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.services-availability-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.services-availability-btn-primary {
+  background: #3e4e47;
+  color: #f4f7f4;
+}
+
+.services-availability-btn-primary:hover:not(:disabled) {
+  background: #2f3d37;
+}
+
+.services-availability-btn-outline {
+  background: transparent;
+  border-color: rgba(62, 78, 71, 0.35);
+  color: #3e4e47;
+}
+
+.services-availability-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
+  gap: 20px;
+}
+
+.services-availability-card {
+  background: #f4f7f4;
+  border: 1px solid rgba(62, 78, 71, 0.2);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.services-availability-title {
+  margin: 0 0 16px;
+  font-size: 1.2rem;
+}
+
+.services-availability-events {
+  display: grid;
+  gap: 12px;
+}
+
+.services-availability-event {
+  background: #fff;
+  border: 1px solid rgba(62, 78, 71, 0.15);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.services-availability-event-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.services-availability-event-time,
+.services-availability-event-meta {
+  margin: 4px 0 0;
+  font-size: 0.92rem;
+  color: rgba(33, 33, 33, 0.75);
+}
+
+.services-availability-form {
+  display: grid;
+  gap: 12px;
+}
+
+.services-availability-label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #3e4e47;
+}
+
+.services-availability-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(62, 78, 71, 0.25);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
 @media (max-width: 900px) {
   .services-page {
     grid-template-columns: 1fr;
@@ -568,6 +745,10 @@
   }
 
   .services-stats-row {
+    grid-template-columns: 1fr;
+  }
+
+  .services-availability-grid {
     grid-template-columns: 1fr;
   }
 

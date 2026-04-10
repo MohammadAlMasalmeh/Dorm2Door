@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
+import ProviderProfileForm from '../components/ProviderProfileForm'
 
 const AVATAR_BUCKET = 'avatars'
 const MAX_SIZE_MB = 2
@@ -25,48 +26,45 @@ function ImagePlaceholderIcon() {
   )
 }
 
-function UserPlusIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <line x1="19" y1="8" x2="19" y2="14" />
-      <line x1="22" y1="11" x2="16" y2="11" />
-    </svg>
-  )
+function formatReviewDate(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function UserCheckIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <polyline points="16 11 18 13 22 9" />
-    </svg>
-  )
+function formatRelativeTime(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const now = Date.now()
+  const diffMs = now - d.getTime()
+  const sec = Math.floor(diffMs / 1000)
+  if (sec < 45) return 'Just now'
+  const min = Math.floor(sec / 60)
+  if (min < 60) return `${min} min ago`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr} hr ago`
+  const days = Math.floor(hr / 24)
+  if (days < 14) return `${days} day${days === 1 ? '' : 's'} ago`
+  return formatReviewDate(iso)
 }
 
-function UserMinusIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <line x1="22" y1="11" x2="16" y2="11" />
-    </svg>
-  )
+function starsForAverage(avg) {
+  if (avg == null || Number.isNaN(Number(avg))) return '☆☆☆☆☆'
+  const n = Math.min(5, Math.max(0, Math.round(Number(avg))))
+  return `${'★'.repeat(n)}${'☆'.repeat(5 - n)}`
 }
 
-function RatingStars({ value, size = '1rem' }) {
-  const n = Math.round(Number(value) || 0)
-  return (
-    <span className="profile-customer-rating-stars" style={{ fontSize: size }} aria-hidden>
-      {'★'.repeat(n)}
-      {'☆'.repeat(5 - n)}
-    </span>
-  )
+function getServiceGalleryUrls(svc) {
+  const multi = svc?.image_urls
+  if (Array.isArray(multi) && multi.length > 0) return multi.filter(Boolean)
+  if (svc?.image_url) return [svc.image_url]
+  return []
 }
 
 export default function Profile({ session, userProfile, onUpdate }) {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [displayName, setDisplayName] = useState(userProfile?.display_name ?? '')
   const [bio, setBio] = useState(userProfile?.bio ?? '')
   const [avatarUrl, setAvatarUrl] = useState(userProfile?.avatar_url ?? '')
@@ -74,37 +72,30 @@ export default function Profile({ session, userProfile, onUpdate }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
-  const [activeTab, setActiveTab] = useState('friends')
+  const [activeTab, setActiveTab] = useState('favorited')
   const [provider, setProvider] = useState(null)
-  const [suggested, setSuggested] = useState([])
+  const [providerServices, setProviderServices] = useState([])
+  const [serviceStats, setServiceStats] = useState({})
+  const [providerReviews, setProviderReviews] = useState([])
+  const [favoritedServices, setFavoritedServices] = useState([])
+  /** Reviews providers left for this user (`customer_reviews`), shown on the consumer Reviews tab */
+  const [customerReviews, setCustomerReviews] = useState([])
+  const [contentLoading, setContentLoading] = useState(true)
   const [friendCount, setFriendCount] = useState(0)
-  const [friends, setFriends] = useState([])
-  const [pendingRequests, setPendingRequests] = useState([])
-  const [sentRequests, setSentRequests] = useState([])
   const [showEditModal, setShowEditModal] = useState(false)
   const [tagsInput, setTagsInput] = useState('')
-  const [customerRating, setCustomerRating] = useState({ avg: null, count: 0 })
-  const [providerReviewCount, setProviderReviewCount] = useState(0)
   const fileInputRef = useRef(null)
   const bannerInputRef = useRef(null)
 
   const uid = session?.user?.id
 
   useEffect(() => {
-    if (!uid) return
-    supabase
-      .from('users')
-      .select('avg_customer_rating, customer_review_count')
-      .eq('id', uid)
-      .single()
-      .then(({ data }) => {
-        if (!data) return
-        setCustomerRating({
-          avg: data.avg_customer_rating != null ? Number(data.avg_customer_rating) : null,
-          count: Number(data.customer_review_count) || 0,
-        })
-      })
-  }, [uid, userProfile?.avg_customer_rating, userProfile?.customer_review_count])
+    if (searchParams.get('providerSetup') !== '1') return
+    setShowEditModal(true)
+    const next = new URLSearchParams(searchParams)
+    next.delete('providerSetup')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
 
   useEffect(() => {
     setDisplayName(userProfile?.display_name ?? '')
@@ -118,7 +109,7 @@ export default function Profile({ session, userProfile, onUpdate }) {
     setTagsInput(Array.isArray(arr) ? arr.filter(Boolean).join(', ') : '')
   }, [userProfile?.tags])
 
-  // Fetch provider data and service review count
+  // Fetch provider data
   useEffect(() => {
     if (!uid) return
     void (async () => {
@@ -128,157 +119,211 @@ export default function Profile({ session, userProfile, onUpdate }) {
         .eq('id', uid)
         .maybeSingle()
       setProvider(data)
-      if (data) {
-        const { count } = await supabase
-          .from('reviews')
-          .select('*', { count: 'exact', head: true })
-          .eq('provider_id', uid)
-        setProviderReviewCount(count ?? 0)
-      } else {
-        setProviderReviewCount(0)
-      }
     })()
   }, [uid])
 
-  // Fetch friend count and friend list
+  // Fetch friend/follower count
   useEffect(() => {
     if (!uid) return
-    fetchFriends()
+    void (async () => {
+      const { data: rows } = await supabase
+        .from('friends')
+        .select('user_id, friend_id')
+        .or(`user_id.eq.${uid},friend_id.eq.${uid}`)
+      if (!rows?.length) {
+        setFriendCount(0)
+        return
+      }
+      const friendIds = [...new Set(rows.map((r) => (r.user_id === uid ? r.friend_id : r.user_id)))]
+      setFriendCount(friendIds.length)
+    })()
   }, [uid])
 
-  async function fetchFriends() {
-    // Get friends where user is user_id (bidirectional rows exist)
-    const { data: rows } = await supabase
-      .from('friends')
-      .select('user_id, friend_id')
-      .or(`user_id.eq.${uid},friend_id.eq.${uid}`)
-
-    if (!rows?.length) {
-      setFriendCount(0)
-      setFriends([])
-      return
-    }
-
-    const friendIds = [...new Set(rows.map(r => (r.user_id === uid ? r.friend_id : r.user_id)))]
-    setFriendCount(friendIds.length)
-
-    // Fetch friend user info
-    const { data: users } = await supabase
-      .from('users')
-      .select('id, display_name, avatar_url')
-      .in('id', friendIds)
-    setFriends(users || [])
-  }
-
-  // Fetch pending friend requests (received)
+  // Fetch tab content
   useEffect(() => {
     if (!uid) return
-    fetchRequests()
-  }, [uid])
+    setContentLoading(true)
+    void (async () => {
+      const [
+        providerServicesRes,
+        providerReviewsRes,
+        customerReviewsRes,
+        favoritedRes,
+        completedApptsRes,
+      ] = await Promise.all([
+        supabase
+          .from('services')
+          .select('id, name, image_url, image_urls, service_options(id, name, price)')
+          .eq('provider_id', uid),
+        supabase
+          .from('reviews')
+          .select(
+            'id, rating, comment, created_at, appointment_id, consumer_id, users!reviews_consumer_id_fkey(display_name, avatar_url)',
+          )
+          .eq('provider_id', uid)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('customer_reviews')
+          .select('id, rating, comment, created_at, provider_id, appointment_id')
+          .eq('consumer_id', uid)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('service_favorites')
+          .select(
+            `created_at,
+             services (
+               id, name, description, image_url, image_urls, provider_id,
+               service_options (id, name, price),
+               providers ( location, users (display_name, avatar_url) )
+             )`,
+          )
+          .eq('user_id', uid)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('appointments')
+          .select('service_id, service_options(price), services(price)')
+          .eq('provider_id', uid)
+          .eq('status', 'completed'),
+      ])
 
-  async function fetchRequests() {
-    const [{ data: received }, { data: sent }] = await Promise.all([
-      supabase
-        .from('friend_requests')
-        .select('id, sender_id, created_at')
-        .eq('receiver_id', uid)
-        .eq('status', 'pending'),
-      supabase
-        .from('friend_requests')
-        .select('id, receiver_id')
-        .eq('sender_id', uid)
-        .eq('status', 'pending'),
-    ])
+      const servicesList = providerServicesRes.data || []
+      setProviderServices(servicesList)
 
-    setSentRequests(sent || [])
-
-    if (!received?.length) {
-      setPendingRequests([])
-      return
-    }
-
-    const senderIds = received.map(r => r.sender_id)
-    const { data: users } = await supabase
-      .from('users')
-      .select('id, display_name, avatar_url')
-      .in('id', senderIds)
-    const userMap = (users || []).reduce((acc, u) => ({ ...acc, [u.id]: u }), {})
-    setPendingRequests(received.map(r => ({
-      ...r,
-      display_name: userMap[r.sender_id]?.display_name || 'User',
-      avatar_url: userMap[r.sender_id]?.avatar_url,
-    })))
-  }
-
-  // Fetch suggested providers (exclude friends and pending requests)
-  useEffect(() => {
-    if (!uid) return
-    supabase
-      .from('providers')
-      .select('id, bio, location')
-      .neq('id', uid)
-      .limit(6)
-      .then(async ({ data: providers }) => {
-        if (!providers?.length) { setSuggested([]); return }
-
-        // Get existing friend IDs and pending request IDs to filter out
-        const friendIds = friends.map(f => f.id)
-        const sentIds = sentRequests.map(r => r.receiver_id)
-        const excludeIds = new Set([...friendIds, ...sentIds])
-
-        const filtered = providers.filter(p => !excludeIds.has(p.id)).slice(0, 3)
-        if (!filtered.length) { setSuggested([]); return }
-
-        const ids = filtered.map(p => p.id)
-        const { data: users } = await supabase
-          .from('users')
-          .select('id, display_name, avatar_url')
-          .in('id', ids)
-        const userMap = (users || []).reduce((acc, u) => ({ ...acc, [u.id]: u }), {})
-        setSuggested(filtered.map(p => ({
-          ...p,
-          display_name: userMap[p.id]?.display_name ?? 'User',
-          avatar_url: userMap[p.id]?.avatar_url ?? null,
-        })))
+      const reviewRows = providerReviewsRes.data || []
+      const apptIds = [...new Set(reviewRows.map((r) => r.appointment_id).filter(Boolean))]
+      let apptToService = {}
+      if (apptIds.length) {
+        const { data: apRows } = await supabase.from('appointments').select('id, service_id').in('id', apptIds)
+        ;(apRows || []).forEach((a) => {
+          apptToService[a.id] = a.service_id
+        })
+      }
+      const ratingsByService = {}
+      reviewRows.forEach((r) => {
+        const sid = apptToService[r.appointment_id]
+        if (!sid) return
+        if (!ratingsByService[sid]) ratingsByService[sid] = []
+        ratingsByService[sid].push(Number(r.rating) || 0)
       })
-  }, [uid, friends.length, sentRequests.length])
 
-  async function sendFriendRequest(friendId) {
-    const { error } = await supabase.from('friend_requests').insert({
-      sender_id: uid,
-      receiver_id: friendId,
-    })
-    if (!error) {
-      setSentRequests(prev => [...prev, { id: 'temp', receiver_id: friendId }])
-    }
-  }
+      const stats = {}
+      ;(completedApptsRes.data || []).forEach((a) => {
+        const sid = a.service_id
+        if (!sid) return
+        if (!stats[sid]) stats[sid] = { revenue: 0, bookings: 0, avgRating: null, reviewCount: 0 }
+        stats[sid].bookings += 1
+        const p = a.service_options?.price != null ? a.service_options.price : a.services?.price
+        if (p != null) stats[sid].revenue += Number(p)
+      })
+      Object.keys(ratingsByService).forEach((sid) => {
+        const arr = ratingsByService[sid]
+        const avg = arr.reduce((s, x) => s + x, 0) / arr.length
+        if (!stats[sid]) stats[sid] = { revenue: 0, bookings: 0, avgRating: null, reviewCount: 0 }
+        stats[sid].avgRating = avg
+        stats[sid].reviewCount = arr.length
+      })
+      servicesList.forEach((s) => {
+        if (!stats[s.id]) stats[s.id] = { revenue: 0, bookings: 0, avgRating: null, reviewCount: 0 }
+      })
+      setServiceStats(stats)
 
-  async function acceptRequest(requestId) {
-    await supabase.from('friend_requests').update({ status: 'accepted' }).eq('id', requestId)
-    fetchFriends()
-    fetchRequests()
-  }
+      setProviderReviews(reviewRows)
 
-  async function declineRequest(requestId) {
-    await supabase.from('friend_requests').update({ status: 'declined' }).eq('id', requestId)
-    fetchRequests()
-  }
+      const customerReviewRows = customerReviewsRes.data || []
+      if (customerReviewRows.length > 0) {
+        const providerIds = [...new Set(customerReviewRows.map((r) => r.provider_id).filter(Boolean))]
+        const { data: provRows } = await supabase
+          .from('providers')
+          .select('id, users(display_name, avatar_url)')
+          .in('id', providerIds)
+        const providerMap = Object.fromEntries(
+          (provRows || []).map((p) => [
+            p.id,
+            {
+              name: p.users?.display_name || 'Provider',
+              avatar_url: p.users?.avatar_url || null,
+            },
+          ]),
+        )
+        setCustomerReviews(
+          customerReviewRows.map((r) => ({
+            ...r,
+            provider_name: providerMap[r.provider_id]?.name || 'Provider',
+            provider_avatar: providerMap[r.provider_id]?.avatar_url || null,
+          })),
+        )
+      } else {
+        setCustomerReviews([])
+      }
 
-  async function handleUnfriend(friendId) {
-    await supabase.rpc('unfriend', { friend: friendId })
-    fetchFriends()
-    fetchRequests()
-  }
+      const favRows = favoritedRes.data || []
+      const favList = favRows
+        .map((row) => {
+          const s = row.services
+          if (!s?.id) return null
+          const opts = s.service_options || []
+          const prices = opts.map((o) => Number(o.price)).filter(Number.isFinite)
+          const minPrice = prices.length ? Math.min(...prices) : null
+          return {
+            id: s.id,
+            name: s.name,
+            description: s.description,
+            image_url: s.image_url,
+            image_urls: s.image_urls,
+            provider_id: s.provider_id,
+            provider_name: s.providers?.users?.display_name || 'Provider',
+            provider_avatar: s.providers?.users?.avatar_url,
+            location: (s.providers?.location || '').trim(),
+            minPrice,
+            service_options: opts,
+          }
+        })
+        .filter(Boolean)
+      setFavoritedServices(favList)
+      setContentLoading(false)
+    })()
+  }, [uid])
 
   const initials = (userProfile?.display_name || session?.user?.email || '?')
     .split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
 
   const tags = (userProfile?.tags ?? []).filter(Boolean).slice(0, 5)
   const aboutText = bio || provider?.bio || ''
-  const providerAvg =
-    provider?.avg_rating != null && Number(provider.avg_rating) > 0
-      ? Number(provider.avg_rating).toFixed(1)
-      : null
+  const isProviderProfile =
+    userProfile?.role === 'provider' ||
+    session?.user?.user_metadata?.role === 'provider' ||
+    Boolean(provider)
+  const visibleTabs = isProviderProfile
+    ? [
+        { id: 'services', label: 'Services' },
+        { id: 'reviews', label: 'Reviews' },
+      ]
+    : [
+        { id: 'favorited', label: 'Favorited' },
+        { id: 'reviews', label: 'Reviews' },
+      ]
+  const providerReviewAverage = providerReviews.length
+    ? providerReviews.reduce((sum, r) => sum + (Number(r.rating) || 0), 0) / providerReviews.length
+    : null
+  const providerRatingBuckets = [5, 4, 3, 2, 1].map((star) => ({
+    star,
+    count: providerReviews.filter((r) => Number(r.rating) === star).length,
+  }))
+  const maxBucket = Math.max(...providerRatingBuckets.map((b) => b.count), 1)
+
+  const consumerReviewAverage = customerReviews.length
+    ? customerReviews.reduce((sum, r) => sum + (Number(r.rating) || 0), 0) / customerReviews.length
+    : null
+  const consumerRatingBuckets = [5, 4, 3, 2, 1].map((star) => ({
+    star,
+    count: customerReviews.filter((r) => Number(r.rating) === star).length,
+  }))
+  const consumerMaxBucket = Math.max(...consumerRatingBuckets.map((b) => b.count), 1)
+
+  useEffect(() => {
+    const defaultTab = isProviderProfile ? 'services' : 'favorited'
+    if (!visibleTabs.some((t) => t.id === activeTab)) setActiveTab(defaultTab)
+  }, [isProviderProfile, activeTab, visibleTabs])
 
   async function handleAvatarChange(e) {
     const file = e.target.files?.[0]
@@ -449,180 +494,312 @@ export default function Profile({ session, userProfile, onUpdate }) {
             </div>
           </div>
 
-          <div className="profile-about-row">
+          <div className="profile-about-row profile-about-row-single">
             <div className="profile-info-block">
               <h1 className="profile-display-name">{userProfile?.display_name || 'User'}</h1>
-              <p className="profile-friends">{friendCount} {friendCount === 1 ? 'Friend' : 'Friends'}</p>
-              <div className="profile-ratings" aria-label="Ratings">
-                <div className="profile-rating-row">
-                  <span className="profile-rating-label">Customer</span>
-                  {customerRating.count > 0 && customerRating.avg != null ? (
-                    <>
-                      <RatingStars value={customerRating.avg} size="0.85rem" />
-                      <span className="profile-rating-score">{customerRating.avg.toFixed(1)}</span>
-                      <span className="profile-rating-count" title="Average from providers after completed bookings">
-                        ({customerRating.count} {customerRating.count === 1 ? 'review' : 'reviews'})
-                      </span>
-                    </>
-                  ) : (
-                    <span className="profile-rating-empty">
-                      Provider ratings will appear here after providers rate their experience with you on completed bookings.
-                    </span>
-                  )}
-                </div>
-                {provider && (
-                  <div className="profile-rating-row">
-                    <span className="profile-rating-label">Provider</span>
-                    {providerReviewCount > 0 && providerAvg ? (
-                      <>
-                        <RatingStars value={provider.avg_rating} size="0.85rem" />
-                        <span className="profile-rating-score">{providerAvg}</span>
-                        <span className="profile-rating-count">
-                          ({providerReviewCount} {providerReviewCount === 1 ? 'review' : 'reviews'})
-                        </span>
-                      </>
-                    ) : (
-                      <span className="profile-rating-empty">No reviews yet</span>
-                    )}
-                  </div>
-                )}
-              </div>
+              <p className="profile-friends">{friendCount} Following  {friendCount} Followers</p>
               <section className="profile-about">
                 <h2 className="profile-about-title">About</h2>
                 <p className="profile-about-text">{aboutText || 'Add a short bio in settings.'}</p>
               </section>
             </div>
-
-            <aside className="profile-suggested">
-              <h2 className="profile-suggested-title">Suggested for you</h2>
-              <div className="profile-suggested-list">
-                {suggested.length > 0
-                  ? suggested.map((p) => {
-                      const isPending = sentRequests.some(r => r.receiver_id === p.id)
-                      return (
-                        <div key={p.id} className="profile-suggested-card">
-                          <div className="profile-suggested-avatar">
-                            {p.avatar_url ? (
-                              <img src={p.avatar_url} alt="" />
-                            ) : (
-                              <span className="profile-suggested-initials">
-                                {(p.display_name || 'U').slice(0, 2).toUpperCase()}
-                              </span>
-                            )}
-                          </div>
-                          <div className="profile-suggested-info">
-                            <span className="profile-suggested-name">{p.display_name}</span>
-                            <span className="profile-suggested-meta">{p.location || `Class '29`}</span>
-                          </div>
-                          {isPending ? (
-                            <span className="profile-suggested-pending">
-                              <UserCheckIcon />
-                              <span>Pending</span>
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              className="profile-suggested-add"
-                              onClick={() => sendFriendRequest(p.id)}
-                            >
-                              <UserPlusIcon />
-                              <span>Add</span>
-                            </button>
-                          )}
-                        </div>
-                      )
-                    })
-                  : (
-                    <p className="profile-section-desc">No suggestions right now. Check back later!</p>
-                  )}
-              </div>
-            </aside>
           </div>
 
-          <nav className="profile-tabs" aria-label="Profile sections">
-            <button
-              type="button"
-              className={`profile-tab${activeTab === 'friends' ? ' active' : ''}`}
-              onClick={() => setActiveTab('friends')}
-            >
-              Friends {pendingRequests.length > 0 && <span className="profile-tab-badge">{pendingRequests.length}</span>}
-            </button>
+          <nav className="profile-tabs profile-tabs-below-about" aria-label="Profile sections">
+            {visibleTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`profile-tab${activeTab === tab.id ? ' active' : ''}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
           </nav>
 
           <div className="profile-tab-content">
-            {activeTab === 'friends' && (
-              <section className="profile-section">
-                {/* Pending friend requests */}
-                {pendingRequests.length > 0 && (
-                  <div className="friends-requests">
-                    <h3 className="friends-section-title">Friend Requests</h3>
-                    {pendingRequests.map(req => (
-                      <div key={req.id} className="friends-request-card">
-                        <div className="friends-avatar">
-                          {req.avatar_url ? (
-                            <img src={req.avatar_url} alt="" />
-                          ) : (
-                            <span className="friends-avatar-initials">
-                              {(req.display_name || 'U').slice(0, 2).toUpperCase()}
-                            </span>
-                          )}
-                        </div>
-                        <span className="friends-name">{req.display_name}</span>
-                        <div className="friends-request-actions">
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-primary"
-                            onClick={() => acceptRequest(req.id)}
-                          >
-                            Accept
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline"
-                            onClick={() => declineRequest(req.id)}
-                          >
-                            Decline
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+            {contentLoading ? <p className="profile-section-desc">Loading…</p> : null}
 
-                {/* Friends list */}
-                <h3 className="friends-section-title">Your Friends</h3>
-                {friends.length === 0 ? (
-                  <p className="profile-section-desc">No friends yet. Add people from Suggested for you.</p>
+            {!contentLoading && isProviderProfile && activeTab === 'services' && (
+              <section className="profile-section">
+                {providerServices.length === 0 ? (
+                  <p className="profile-section-desc">No services added yet.</p>
                 ) : (
-                  <div className="friends-list">
-                    {friends.map(f => (
-                      <div key={f.id} className="friends-card">
-                        <Link to={`/user/${f.id}`} className="friends-card-link">
-                          <div className="friends-avatar">
-                            {f.avatar_url ? (
-                              <img src={f.avatar_url} alt="" />
-                            ) : (
-                              <span className="friends-avatar-initials">
-                                {(f.display_name || 'U').slice(0, 2).toUpperCase()}
-                              </span>
-                            )}
+                  <div className="profile-services-grid">
+                    {providerServices.map((svc) => {
+                      const gallery = getServiceGalleryUrls(svc)
+                      const mainImg = gallery[0]
+                      const thumbs = gallery.slice(0, 4)
+                      const st = serviceStats[svc.id] || {
+                        revenue: 0,
+                        bookings: 0,
+                        avgRating: null,
+                        reviewCount: 0,
+                      }
+                      return (
+                        <article key={svc.id} className="profile-service-card profile-service-card-rich">
+                          <div
+                            className={`profile-service-thumb${mainImg ? '' : ' profile-service-thumb-empty'}`}
+                            style={mainImg ? { backgroundImage: `url(${mainImg})` } : {}}
+                          >
+                            {!mainImg ? <ImagePlaceholderIcon /> : null}
                           </div>
-                          <span className="friends-name">{f.display_name}</span>
-                        </Link>
-                        <button
-                          type="button"
-                          className="friends-unfriend-btn"
-                          onClick={() => handleUnfriend(f.id)}
-                          title="Unfriend"
-                        >
-                          <UserMinusIcon />
-                        </button>
-                      </div>
-                    ))}
+                          {thumbs.length > 0 && (
+                            <div className="profile-service-thumbs" aria-hidden>
+                              {thumbs.map((url, i) => (
+                                <span
+                                  key={`${svc.id}-t-${i}`}
+                                  className="profile-service-thumb-mini"
+                                  style={{ backgroundImage: `url(${url})` }}
+                                />
+                              ))}
+                            </div>
+                          )}
+                          <h3 className="profile-service-name">{svc.name}</h3>
+                          <div className="profile-service-stats profile-service-stats-stack">
+                            <div className="profile-service-stat-line">
+                              <span className="profile-service-stat-star" aria-hidden>★</span>
+                              {st.avgRating != null ? st.avgRating.toFixed(2) : '—'}
+                              {st.reviewCount > 0 ? (
+                                <span className="profile-service-stat-sub"> ({st.reviewCount} reviews)</span>
+                              ) : null}
+                            </div>
+                            <div className="profile-service-stat-line">
+                              {st.bookings} {st.bookings === 1 ? 'booking' : 'bookings'}
+                            </div>
+                            <div className="profile-service-stat-line profile-service-stat-line-money">
+                              ${Number(st.revenue || 0).toFixed(2)} earned
+                            </div>
+                          </div>
+                        </article>
+                      )
+                    })}
                   </div>
                 )}
               </section>
             )}
+
+            {!contentLoading && !isProviderProfile && activeTab === 'favorited' && (
+              <section className="profile-section">
+                {favoritedServices.length === 0 ? (
+                  <p className="profile-section-desc">
+                    No favorited services yet. Tap the heart on a provider&apos;s listing photo to save it here.
+                  </p>
+                ) : (
+                  <div className="profile-services-grid">
+                    {favoritedServices.map((svc) => {
+                      const gallery = getServiceGalleryUrls(svc)
+                      const mainImg = gallery[0]
+                      const thumbs = gallery.slice(0, 4)
+                      const dur = '~30 min'
+                      const loc = svc.location || ''
+                      const metaBits = [loc, dur].filter(Boolean)
+                      const metaLine = metaBits.join(' · ')
+                      const pInitials = (svc.provider_name || 'P')
+                        .split(' ')
+                        .map((n) => n[0])
+                        .join('')
+                        .toUpperCase()
+                        .slice(0, 2)
+                      return (
+                        <Link
+                          key={svc.id}
+                          to={`/provider/${svc.provider_id}?service=${encodeURIComponent(svc.id)}`}
+                          className="profile-service-card profile-service-card-rich profile-favorited-service-card"
+                        >
+                          <div
+                            className={`profile-service-thumb${mainImg ? '' : ' profile-service-thumb-empty'}`}
+                            style={mainImg ? { backgroundImage: `url(${mainImg})` } : {}}
+                          >
+                            {!mainImg ? <ImagePlaceholderIcon /> : null}
+                          </div>
+                          {thumbs.length > 0 && (
+                            <div className="profile-service-thumbs" aria-hidden>
+                              {thumbs.map((url, i) => (
+                                <span
+                                  key={`${svc.id}-t-${i}`}
+                                  className="profile-service-thumb-mini"
+                                  style={{ backgroundImage: `url(${url})` }}
+                                />
+                              ))}
+                            </div>
+                          )}
+                          <h3 className="profile-service-name">{svc.name}</h3>
+                          <div className="profile-favorited-provider-row">
+                            {svc.provider_avatar ? (
+                              <img src={svc.provider_avatar} alt="" className="profile-favorited-provider-avatar" />
+                            ) : (
+                              <span className="profile-favorited-provider-avatar profile-favorited-provider-initials">
+                                {pInitials}
+                              </span>
+                            )}
+                            <span className="profile-favorited-provider-name">{svc.provider_name}</span>
+                            {metaLine ? (
+                              <span className="profile-favorited-provider-meta">{metaLine}</span>
+                            ) : null}
+                          </div>
+                          {svc.minPrice != null ? (
+                            <p className="profile-favorited-price">From ${Number(svc.minPrice).toFixed(0)}</p>
+                          ) : null}
+                          {svc.description ? (
+                            <div className="profile-favorited-overview">
+                              <span className="profile-favorited-overview-label">Overview</span>
+                              <p className="profile-favorited-overview-text">{svc.description}</p>
+                            </div>
+                          ) : null}
+                        </Link>
+                      )
+                    })}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {!contentLoading && activeTab === 'reviews' && (
+              <section className="profile-section">
+                {isProviderProfile ? (
+                  <>
+                    <div className="profile-reviews-summary">
+                      <div className="profile-reviews-score">
+                        <p className="profile-reviews-score-num">
+                          {providerReviewAverage != null ? providerReviewAverage.toFixed(1) : '—'}
+                        </p>
+                        <div className="profile-reviews-score-stars" aria-hidden>
+                          {starsForAverage(providerReviewAverage)}
+                        </div>
+                        <span className="profile-reviews-score-count">({providerReviews.length})</span>
+                      </div>
+                      <div className="profile-reviews-bars-wrap">
+                        <div className="profile-reviews-bars">
+                          {providerRatingBuckets.map((b) => (
+                            <div key={b.star} className="profile-reviews-bar-row">
+                              <span className="profile-reviews-bar-label">{b.star}</span>
+                              <div className="profile-reviews-bar-track">
+                                <div
+                                  className="profile-reviews-bar-fill"
+                                  style={{ width: `${b.count ? (b.count / maxBucket) * 100 : 0}%` }}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="profile-reviews-list">
+                      {providerReviews.length === 0 ? (
+                        <p className="profile-section-desc">No reviews yet.</p>
+                      ) : (
+                        providerReviews.map((r) => {
+                          const name = r.users?.display_name || 'Anonymous'
+                          const initials = name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+                          return (
+                            <article key={r.id} className="profile-review-card">
+                              <div className="profile-review-stars-row" aria-hidden>
+                                {'★'.repeat(Number(r.rating) || 0)}
+                                {'☆'.repeat(5 - (Number(r.rating) || 0))}
+                              </div>
+                              {r.comment ? <p className="profile-review-comment">{r.comment}</p> : null}
+                              <div className="profile-review-footer">
+                                <div className="profile-review-user">
+                                  {r.users?.avatar_url ? (
+                                    <img src={r.users.avatar_url} alt="" className="profile-review-avatar" />
+                                  ) : (
+                                    <span className="profile-review-avatar profile-review-avatar-initials">{initials}</span>
+                                  )}
+                                  <div className="profile-review-user-text">
+                                    <span className="profile-review-name">{name}</span>
+                                  </div>
+                                </div>
+                                <span className="profile-review-relative">{formatRelativeTime(r.created_at)}</span>
+                              </div>
+                            </article>
+                          )
+                        })
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="profile-reviews-summary">
+                      <div className="profile-reviews-score">
+                        <p className="profile-reviews-score-num">
+                          {consumerReviewAverage != null ? consumerReviewAverage.toFixed(1) : '—'}
+                        </p>
+                        <div className="profile-reviews-score-stars" aria-hidden>
+                          {starsForAverage(consumerReviewAverage)}
+                        </div>
+                        <span className="profile-reviews-score-count">({customerReviews.length})</span>
+                      </div>
+                      <div className="profile-reviews-bars-wrap">
+                        <div className="profile-reviews-bars">
+                          {consumerRatingBuckets.map((b) => (
+                            <div key={b.star} className="profile-reviews-bar-row">
+                              <span className="profile-reviews-bar-label">{b.star}</span>
+                              <div className="profile-reviews-bar-track">
+                                <div
+                                  className="profile-reviews-bar-fill"
+                                  style={{ width: `${b.count ? (b.count / consumerMaxBucket) * 100 : 0}%` }}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="profile-reviews-list">
+                      {customerReviews.length === 0 ? (
+                        <p className="profile-section-desc">
+                          No reviews from providers yet. They appear here after a provider rates you following a completed visit.
+                        </p>
+                      ) : (
+                        customerReviews.map((r) => {
+                          const pname = r.provider_name || 'Provider'
+                          const pinitials = pname
+                            .split(' ')
+                            .map((n) => n[0])
+                            .join('')
+                            .toUpperCase()
+                            .slice(0, 2)
+                          return (
+                            <article key={r.id} className="profile-review-card">
+                              <div className="profile-review-stars-row" aria-hidden>
+                                {'★'.repeat(Number(r.rating) || 0)}
+                                {'☆'.repeat(5 - (Number(r.rating) || 0))}
+                              </div>
+                              {r.comment ? <p className="profile-review-comment">{r.comment}</p> : null}
+                              <div className="profile-review-footer">
+                                <div className="profile-review-user">
+                                  {r.provider_avatar ? (
+                                    <img src={r.provider_avatar} alt="" className="profile-review-avatar" />
+                                  ) : (
+                                    <span className="profile-review-avatar profile-review-avatar-initials">{pinitials}</span>
+                                  )}
+                                  <div className="profile-review-user-text">
+                                    <span className="profile-review-name">{pname}</span>
+                                  </div>
+                                </div>
+                                <span className="profile-review-relative">{formatRelativeTime(r.created_at)}</span>
+                              </div>
+                            </article>
+                          )
+                        })
+                      )}
+                    </div>
+                  </>
+                )}
+              </section>
+            )}
+          </div>
+
+          <div className="profile-sign-out-wrap">
+            <button
+              type="button"
+              className="profile-sign-out-btn"
+              onClick={() => supabase.auth.signOut()}
+            >
+              Sign out
+            </button>
           </div>
         </div>
       </div>
@@ -714,6 +891,9 @@ export default function Profile({ session, userProfile, onUpdate }) {
                   </button>
                 </div>
               </form>
+              {isProviderProfile && session && (
+                <ProviderProfileForm session={session} onSaved={onUpdate} compact />
+              )}
             </div>
           </div>
         </div>

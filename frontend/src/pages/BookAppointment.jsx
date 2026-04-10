@@ -284,7 +284,12 @@ export default function BookAppointment({ session }) {
 
       {/* Right: content */}
       <div className="booking-content">
-        <Link to={`/provider/${providerId}`} className="back-btn booking-back-link">← Back to listing</Link>
+        <Link
+          to={`/provider/${providerId}?service=${encodeURIComponent(service.id)}`}
+          className="back-btn booking-back-link"
+        >
+          ← Back to listing
+        </Link>
 
         <h1 className="booking-title">{displayName}</h1>
 

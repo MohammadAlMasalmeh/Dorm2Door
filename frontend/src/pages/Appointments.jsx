@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
-import { Link, useSearchParams, Navigate } from 'react-router-dom'
+import { useState, useEffect, useMemo } from 'react'
+import { useSearchParams, Navigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import {
   ApptCard,
   ReviewModal,
   appointmentHasConsumerReview,
+  apptProviderId,
   normalizeApptStatus,
 } from '../components/BookingCards'
 
@@ -14,6 +15,8 @@ export default function Appointments({ session, userProfile }) {
   const [loading, setLoading] = useState(true)
   const [reviewAppt, setReviewAppt] = useState(null)
   const [actionError, setActionError] = useState('')
+  const [reviewedProviderIds, setReviewedProviderIds] = useState(() => new Set())
+  const [apptTab, setApptTab] = useState('upcoming')
 
   const isProvider = userProfile?.role === 'provider' || session?.user?.user_metadata?.role === 'provider'
 
@@ -36,18 +39,26 @@ export default function Appointments({ session, userProfile }) {
     }, { replace: true })
     if (!match) return
     if (normalizeApptStatus(match) !== 'completed' || appointmentHasConsumerReview(match)) return
+    const pid = apptProviderId(match)
+    if (pid != null && reviewedProviderIds.has(pid)) return
     setReviewAppt(match)
-  }, [loading, bookings, reviewFromUrl, setSearchParams])
+  }, [loading, bookings, reviewFromUrl, setSearchParams, reviewedProviderIds])
 
   async function fetchAll() {
     if (!session?.user?.id) return
     setLoading(true)
-    const { data: b } = await supabase
-      .from('appointments')
-      .select('id, consumer_id, provider_id, status, scheduled_at, providers (id, users (display_name)), services (name, price), service_options (name, price), reviews (id)')
-      .eq('consumer_id', session.user.id)
-      .order('scheduled_at', { ascending: false })
-    setBookings(b || [])
+    const [bookRes, revRes] = await Promise.all([
+      supabase
+        .from('appointments')
+        .select(
+          'id, consumer_id, provider_id, status, scheduled_at, providers (id, location, users (display_name)), services (name, price), service_options (name, price), reviews (id)',
+        )
+        .eq('consumer_id', session.user.id)
+        .order('scheduled_at', { ascending: false }),
+      supabase.from('reviews').select('provider_id').eq('consumer_id', session.user.id),
+    ])
+    setBookings(bookRes.data || [])
+    setReviewedProviderIds(new Set((revRes.data || []).map((r) => r.provider_id).filter(Boolean)))
     setLoading(false)
   }
 
@@ -61,10 +72,22 @@ export default function Appointments({ session, userProfile }) {
     fetchAll()
   }
 
-  const consumerActive = bookings.filter(a => ['pending', 'confirmed'].includes(normalizeApptStatus(a)))
-  const consumerCompleted = bookings.filter(a => normalizeApptStatus(a) === 'completed')
-  const consumerCancelled = bookings.filter(a => normalizeApptStatus(a) === 'cancelled')
-  const needsConsumerReview = consumerCompleted.filter(a => !appointmentHasConsumerReview(a))
+  const pendingConsumer = useMemo(
+    () => bookings.filter((a) => normalizeApptStatus(a) === 'pending'),
+    [bookings],
+  )
+  const upcomingConsumer = useMemo(
+    () => bookings.filter((a) => normalizeApptStatus(a) === 'confirmed'),
+    [bookings],
+  )
+  const completedConsumer = useMemo(
+    () => bookings.filter((a) => normalizeApptStatus(a) === 'completed'),
+    [bookings],
+  )
+  const cancelledConsumer = useMemo(
+    () => bookings.filter((a) => normalizeApptStatus(a) === 'cancelled'),
+    [bookings],
+  )
 
   if (isProvider) {
     return <Navigate to="/services" replace />
@@ -74,105 +97,147 @@ export default function Appointments({ session, userProfile }) {
 
   return (
     <div className="bookings-page">
-      <aside className="bookings-sidebar">
-        <h2 className="bookings-sidebar-title">Dashboard</h2>
-        <nav className="bookings-sidebar-nav">
-          <span className="bookings-sidebar-item active">
-            <span className="bookings-sidebar-icon">📋</span>
-            Overview
-          </span>
-          <Link to="/profile" className="bookings-sidebar-item">
-            <span className="bookings-sidebar-icon">👤</span>
-            Profile
-          </Link>
-        </nav>
-      </aside>
-
-      <div className="bookings-main">
-        <h1 className="bookings-page-title">Bookings</h1>
-        <p className="bookings-page-subtitle">Your appointments and activity</p>
-        <p className="bookings-page-subtitle" style={{ marginTop: -12, marginBottom: 8, fontSize: '0.9rem' }}>
-          After a confirmed visit, tap <strong>Mark as complete</strong>, then leave a review under <strong>Rate your experience</strong>.
-        </p>
-        {actionError && (
-          <div className="alert alert-error" style={{ marginBottom: 16 }} role="alert">
-            {actionError}
-          </div>
-        )}
-        <div className="bookings-columns">
-          <section className="bookings-col">
-            {needsConsumerReview.length > 0 && (
-              <>
-                <h3 className="bookings-col-title">Rate your experience</h3>
-                <p className="bookings-col-hint" style={{ margin: '-8px 0 16px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                  These visits are complete — share feedback for your provider.
-                </p>
-                <div className="bookings-cards" style={{ marginBottom: 28 }}>
-                  {needsConsumerReview.map(appt => (
-                    <ApptCard
-                      key={appt.id}
-                      appt={appt}
-                      variant="completed"
-                      onReview={setReviewAppt}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
-
-            <h3 className="bookings-col-title">Upcoming</h3>
-            <div className="bookings-cards">
-              {consumerActive.length === 0 ? (
-                <p className="bookings-empty">No upcoming appointments.</p>
-              ) : (
-                consumerActive.map(appt => (
-                  <ApptCard
-                    key={appt.id}
-                    appt={appt}
-                    variant="upcoming"
-                    onCancel={(id) => updateStatus(id, 'cancelled')}
-                    onConsumerComplete={(id) => updateStatus(id, 'completed')}
-                    onReview={setReviewAppt}
-                  />
-                ))
-              )}
+      <div className="bookings-main bookings-main-appointments">
+        <section className="services-section services-section-appointments bookings-section-appointments">
+          <h1 className="services-heading">Bookings</h1>
+          {actionError ? (
+            <div className="services-action-error" style={{ marginBottom: 12 }} role="alert">
+              {actionError}
             </div>
+          ) : null}
 
-            {consumerCompleted.length > needsConsumerReview.length && (
-              <>
-                <h3 className="bookings-col-title" style={{ marginTop: 28 }}>Past visits</h3>
-                <div className="bookings-cards">
-                  {consumerCompleted.filter(a => appointmentHasConsumerReview(a)).map(appt => (
+          <div className="services-appt-tabs services-appt-tabs--provider" role="tablist" aria-label="Bookings by status">
+            <button
+              type="button"
+              role="tab"
+              id="bookings-tab-upcoming"
+              aria-selected={apptTab === 'upcoming'}
+              aria-controls="bookings-panel-appt"
+              className={`services-appt-tab${apptTab === 'upcoming' ? ' services-appt-tab-active' : ''}`}
+              onClick={() => setApptTab('upcoming')}
+            >
+              Upcoming
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="bookings-tab-pending"
+              aria-selected={apptTab === 'pending'}
+              aria-controls="bookings-panel-appt"
+              className={`services-appt-tab${apptTab === 'pending' ? ' services-appt-tab-active' : ''}`}
+              onClick={() => setApptTab('pending')}
+            >
+              Pending requests
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="bookings-tab-completed"
+              aria-selected={apptTab === 'completed'}
+              aria-controls="bookings-panel-appt"
+              className={`services-appt-tab${apptTab === 'completed' ? ' services-appt-tab-active' : ''}`}
+              onClick={() => setApptTab('completed')}
+            >
+              Completed
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="bookings-tab-cancelled"
+              aria-selected={apptTab === 'cancelled'}
+              aria-controls="bookings-panel-appt"
+              className={`services-appt-tab${apptTab === 'cancelled' ? ' services-appt-tab-active' : ''}`}
+              onClick={() => setApptTab('cancelled')}
+            >
+              Cancelled
+            </button>
+          </div>
+
+          <div
+            id="bookings-panel-appt"
+            role="tabpanel"
+            aria-labelledby={
+              apptTab === 'pending'
+                ? 'bookings-tab-pending'
+                : apptTab === 'upcoming'
+                  ? 'bookings-tab-upcoming'
+                  : apptTab === 'completed'
+                    ? 'bookings-tab-completed'
+                    : 'bookings-tab-cancelled'
+            }
+            className="services-provider-appt-tab-panel"
+          >
+            <div className="services-appt-cards-row services-provider-appt-cards">
+              {apptTab === 'upcoming' &&
+                (upcomingConsumer.length === 0 ? (
+                  <p className="bookings-empty services-provider-appt-empty">No upcoming appointments.</p>
+                ) : (
+                  upcomingConsumer.map((appt) => (
+                    <ApptCard
+                      key={appt.id}
+                      appt={appt}
+                      variant="upcoming"
+                      helpLinkTo="/appointments"
+                      onCancel={(id) => updateStatus(id, 'cancelled')}
+                      onConsumerComplete={(id) => updateStatus(id, 'completed')}
+                      onReview={setReviewAppt}
+                      reviewedProviderIds={reviewedProviderIds}
+                    />
+                  ))
+                ))}
+              {apptTab === 'pending' &&
+                (pendingConsumer.length === 0 ? (
+                  <p className="bookings-empty services-provider-appt-empty">No pending requests.</p>
+                ) : (
+                  pendingConsumer.map((appt) => (
+                    <ApptCard
+                      key={appt.id}
+                      appt={appt}
+                      variant="upcoming"
+                      helpLinkTo="/appointments"
+                      onCancel={(id) => updateStatus(id, 'cancelled')}
+                      onConsumerComplete={(id) => updateStatus(id, 'completed')}
+                      onReview={setReviewAppt}
+                      reviewedProviderIds={reviewedProviderIds}
+                    />
+                  ))
+                ))}
+              {apptTab === 'completed' &&
+                (completedConsumer.length === 0 ? (
+                  <p className="bookings-empty services-provider-appt-empty">No completed appointments yet.</p>
+                ) : (
+                  completedConsumer.map((appt) => (
                     <ApptCard
                       key={appt.id}
                       appt={appt}
                       variant="completed"
+                      helpLinkTo="/appointments"
                       onReview={setReviewAppt}
+                      reviewedProviderIds={reviewedProviderIds}
                     />
-                  ))}
-                </div>
-              </>
-            )}
-
-            {consumerCancelled.length > 0 && (
-              <>
-                <h3 className="bookings-col-title" style={{ marginTop: 28 }}>Cancelled</h3>
-                <div className="bookings-cards">
-                  {consumerCancelled.map(appt => (
-                    <ApptCard key={appt.id} appt={appt} variant="cancelled" />
-                  ))}
-                </div>
-              </>
-            )}
-          </section>
-        </div>
+                  ))
+                ))}
+              {apptTab === 'cancelled' &&
+                (cancelledConsumer.length === 0 ? (
+                  <p className="bookings-empty services-provider-appt-empty">No cancelled bookings.</p>
+                ) : (
+                  cancelledConsumer.map((appt) => (
+                    <ApptCard key={appt.id} appt={appt} variant="cancelled" helpLinkTo="/appointments" />
+                  ))
+                ))}
+            </div>
+          </div>
+        </section>
       </div>
 
       {reviewAppt && (
         <ReviewModal
           appt={reviewAppt}
           onClose={() => setReviewAppt(null)}
-          onSubmit={() => { setReviewAppt(null); fetchAll() }}
+          onSubmit={() => {
+            setReviewAppt(null)
+            fetchAll()
+          }}
         />
       )}
     </div>
