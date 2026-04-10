@@ -21,24 +21,33 @@
   align-items: start;
 }
 
-/* ── Back button ─────────────────────────────────── */
-.figma-listing .listing-back {
+/* ── Back button (single control; row is positioned, not each link) ── */
+.figma-listing .listing-back-row {
   position: absolute;
   left: 14px;
   top: 14px;
   z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.figma-listing .listing-back-row .listing-back {
+  position: static;
   width: 36px;
   height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.4rem;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   color: var(--figma-text);
   border-radius: 8px;
   text-decoration: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
-.figma-listing .listing-back:hover {
+.figma-listing .listing-back-row .listing-back:hover {
   color: var(--figma-accent);
 }
 

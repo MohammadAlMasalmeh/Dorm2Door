@@ -89,7 +89,7 @@ export default function Home({ session }) {
       ;(provRes.data || []).forEach((r) => {
         (r.tags || []).forEach((t) => { const tag = normalize(t); if (tag) counts[tag] = (counts[tag] || 0) + 1 })
       })
-      const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([term]) => term)
+      const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([term]) => term)
       setPopularSearches(sorted.length ? sorted : ['House Party DJ', 'Tutoring', 'Haircut', 'Moving Help', 'Cleaning', 'Dog Walking'])
     })
   }, [])
@@ -181,6 +181,18 @@ export default function Home({ session }) {
     const min = Math.min(...prices)
     const max = Math.max(...prices)
     return max > min ? `$${min}-${max}` : `$${Number(min).toFixed(0)}`
+  }
+
+  function handleSeeMore(sectionKey) {
+    const params = new URLSearchParams({ section: sectionKey })
+    if (queryFromUrl) params.set('q', queryFromUrl)
+    navigate(`/search?${params.toString()}`, {
+      state: {
+        section: sectionKey,
+        q: queryFromUrl,
+        activeTags: [...activeTags],
+      },
+    })
   }
 
   function renderServiceCard(card) {
@@ -346,7 +358,7 @@ export default function Home({ session }) {
         <section className="figma-section">
           <div className="figma-section-head">
             <h2 className="figma-section-title">Popular with friends</h2>
-            <Link to="/services/all" className="figma-section-more">See more</Link>
+            <button type="button" className="figma-section-more" onClick={() => handleSeeMore('popular')}>See more</button>
           </div>
           {loading ? <div className="figma-loading"><div className="spinner" /></div> : serviceCards.length === 0 ? (
             <p className="figma-empty">No providers found. Try different filters or be the first to offer a service!</p>
@@ -373,7 +385,7 @@ export default function Home({ session }) {
         <section className="figma-section figma-section-tight">
           <div className="figma-section-head">
             <h2 className="figma-section-title">Suggested For you</h2>
-            <Link to="/services/all" className="figma-section-more">See more</Link>
+            <button type="button" className="figma-section-more" onClick={() => handleSeeMore('suggested')}>See more</button>
           </div>
           {!loading && serviceCards.length > 0 && (
             <div className="figma-cards-scroll">
@@ -386,7 +398,7 @@ export default function Home({ session }) {
         <section className="figma-section figma-section-tight">
           <div className="figma-section-head">
             <h2 className="figma-section-title">Recently Viewed</h2>
-            <Link to="/services/all" className="figma-section-more">See more</Link>
+            <button type="button" className="figma-section-more" onClick={() => handleSeeMore('recent')}>See more</button>
           </div>
           {!loading && serviceCards.length > 0 && (
             <div className="figma-cards-scroll">

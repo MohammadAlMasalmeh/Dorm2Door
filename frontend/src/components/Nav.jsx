@@ -192,7 +192,7 @@ export default function Nav({ session, userProfile }) {
           <span>All Services</span>
         </NavLink>
 
-        <NavLink to="/discover" className={({ isActive }) => `nav-stack-item${isActive ? ' active' : ''}`}>
+        <NavLink to="/discover" className={({ isActive }) => `nav-stack-item nav-stack-discover${isActive ? ' active' : ''}`}>
           <MapIcon />
           <span>Discover</span>
         </NavLink>

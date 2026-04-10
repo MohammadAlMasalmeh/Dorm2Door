@@ -218,6 +218,10 @@ body {
 }
 .nav-stack-item:hover { color: var(--figma-white); opacity: 0.9; }
 .nav-stack-item.active { color: var(--figma-light-g); }
+/* Discover: “Discover” uses active green from .nav-stack-item.active; keep map stroke white */
+.nav.nav-landing .nav-stack-discover.active svg {
+  color: var(--figma-white);
+}
 .nav-stack-item:focus { outline: none; }
 .nav-stack-item:focus-visible { outline: 2px solid var(--figma-light-g); outline-offset: 2px; }
 .nav-stack-avatar {
@@ -312,6 +316,13 @@ body {
   min-height: calc(100vh - var(--nav-h));
   display: flex;
   flex-direction: column;
+}
+
+/* Search results — full-bleed warm background (avoid white main + nested grey panels) */
+.main-content:has(.figma-search-page) {
+  background: #e7e4df;
+  padding: 0;
+  max-width: none;
 }
 
 .sidebar {
@@ -3136,12 +3147,6 @@ textarea.form-input {
   border-radius: 8px;
 }
 .listing-back:hover { color: var(--accent); }
-.listing-back-profile {
-  font-size: 0.9rem;
-  width: auto;
-  padding: 0 12px;
-}
-.listing-back-profile:hover { color: var(--accent); }
 .listing-gallery-main {
   aspect-ratio: 1;
   border-radius: var(--radius, 10px);

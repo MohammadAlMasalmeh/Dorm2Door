@@ -258,8 +258,7 @@ export default function ProviderProfile({ session }) {
       {/* Left: gallery */}
       <div className="listing-gallery">
         <div className="listing-back-row">
-          <Link to="/" className="listing-back" aria-label="Back">&lsaquo;</Link>
-          <Link to={`/user/${id}`} className="listing-back listing-back-profile">Profile</Link>
+          <Link to="/" className="listing-back" aria-label="Back to home">&lsaquo;</Link>
         </div>
         <div className="listing-gallery-main" style={mainImage ? { backgroundImage: `url(${mainImage})` } : {}}>
           {!mainImage && (

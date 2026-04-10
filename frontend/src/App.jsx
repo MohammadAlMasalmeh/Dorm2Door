@@ -15,6 +15,7 @@ import Discover from './pages/Discover'
 import Services from './pages/Services'
 import ServicesAvailability from './pages/ServicesAvailability'
 import AllServices from './pages/AllServices'
+import SearchResults from './pages/SearchResults'
 import Nav from './components/Nav'
 
 export default function App() {
@@ -106,6 +107,7 @@ export default function App() {
           <Route path="/messages/:conversationId" element={<Messages session={session} userProfile={userProfile} />} />
           <Route path="/discover" element={<Discover />} />
           <Route path="/services/all" element={<AllServices />} />
+          <Route path="/search" element={<SearchResults />} />
           <Route
             path="/services/stats"
             element={(userProfile?.role === 'provider' || session?.user?.user_metadata?.role === 'provider') ? <Services session={session} userProfile={userProfile} /> : <Navigate to="/" replace />}
