@@ -3,6 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { normalizeServiceCategories } from '../constants/serviceCategories'
 import ProviderProfileForm from '../components/ProviderProfileForm'
+import ServiceListingCard from '../components/ServiceListingCard'
+import { galleryUrlsForService, priceLabelForService } from '../serviceListingUtils'
 
 const AVATAR_BUCKET = 'avatars'
 const MAX_SIZE_MB = 2
@@ -23,6 +25,17 @@ function ImagePlaceholderIcon() {
       <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
       <circle cx="8.5" cy="8.5" r="1.5" />
       <path d="M21 15l-5-5L5 21" />
+    </svg>
+  )
+}
+
+function AddFriendIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M19 8v6" />
+      <path d="M22 11h-6" />
     </svg>
   )
 }
@@ -57,13 +70,6 @@ function starsForAverage(avg) {
   return `${'★'.repeat(n)}${'☆'.repeat(5 - n)}`
 }
 
-function getServiceGalleryUrls(svc) {
-  const multi = svc?.image_urls
-  if (Array.isArray(multi) && multi.length > 0) return multi.filter(Boolean)
-  if (svc?.image_url) return [svc.image_url]
-  return []
-}
-
 export default function Profile({ session, userProfile, onUpdate }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const [displayName, setDisplayName] = useState(userProfile?.display_name ?? '')
@@ -83,6 +89,9 @@ export default function Profile({ session, userProfile, onUpdate }) {
   const [customerReviews, setCustomerReviews] = useState([])
   const [contentLoading, setContentLoading] = useState(true)
   const [friendCount, setFriendCount] = useState(0)
+  const [suggestedFriend, setSuggestedFriend] = useState(null)
+  const [suggestedFriendStatus, setSuggestedFriendStatus] = useState('none')
+  const [suggestedFriendLoading, setSuggestedFriendLoading] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [tagsInput, setTagsInput] = useState('')
   const fileInputRef = useRef(null)
@@ -154,7 +163,7 @@ export default function Profile({ session, userProfile, onUpdate }) {
       ] = await Promise.all([
         supabase
           .from('services')
-          .select('id, name, image_url, image_urls, service_options(id, name, price)')
+          .select('id, name, description, image_url, image_urls, service_options(id, name, price)')
           .eq('provider_id', uid),
         supabase
           .from('reviews')
@@ -175,7 +184,7 @@ export default function Profile({ session, userProfile, onUpdate }) {
              services (
                id, name, description, image_url, image_urls, provider_id,
                service_options (id, name, price),
-               providers ( location, users (display_name, avatar_url) )
+               providers ( location, avg_rating, users (display_name, avatar_url) )
              )`,
           )
           .eq('user_id', uid)
@@ -263,8 +272,6 @@ export default function Profile({ session, userProfile, onUpdate }) {
           const s = row.services
           if (!s?.id) return null
           const opts = s.service_options || []
-          const prices = opts.map((o) => Number(o.price)).filter(Number.isFinite)
-          const minPrice = prices.length ? Math.min(...prices) : null
           return {
             id: s.id,
             name: s.name,
@@ -274,8 +281,8 @@ export default function Profile({ session, userProfile, onUpdate }) {
             provider_id: s.provider_id,
             provider_name: s.providers?.users?.display_name || 'Provider',
             provider_avatar: s.providers?.users?.avatar_url,
+            provider_avg_rating: s.providers?.avg_rating != null ? Number(s.providers.avg_rating) : 0,
             location: (s.providers?.location || '').trim(),
-            minPrice,
             service_options: opts,
           }
         })
@@ -284,6 +291,95 @@ export default function Profile({ session, userProfile, onUpdate }) {
       setContentLoading(false)
     })()
   }, [uid])
+
+  async function fetchFriendshipStatus(currentUserId, otherUserId) {
+    const [{ data: friend }, { data: request }] = await Promise.all([
+      supabase
+        .from('friends')
+        .select('user_id')
+        .or(`and(user_id.eq.${currentUserId},friend_id.eq.${otherUserId}),and(user_id.eq.${otherUserId},friend_id.eq.${currentUserId})`)
+        .maybeSingle(),
+      supabase
+        .from('friend_requests')
+        .select('sender_id, status')
+        .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUserId})`)
+        .eq('status', 'pending')
+        .maybeSingle(),
+    ])
+    if (friend) return 'friends'
+    if (request?.sender_id === currentUserId) return 'pending_sent'
+    if (request) return 'pending_received'
+    return 'none'
+  }
+
+  useEffect(() => {
+    if (!uid) return
+    let cancelled = false
+    void (async () => {
+      const { data: users } = await supabase
+        .from('users')
+        .select('id, display_name, avatar_url')
+        .neq('id', uid)
+        .limit(1)
+      const candidate = users?.[0] ?? null
+      if (!candidate || cancelled) {
+        if (!cancelled) {
+          setSuggestedFriend(null)
+          setSuggestedFriendStatus('none')
+        }
+        return
+      }
+
+      const [{ data: providerRow }, status] = await Promise.all([
+        supabase.from('providers').select('location').eq('id', candidate.id).maybeSingle(),
+        fetchFriendshipStatus(uid, candidate.id),
+      ])
+      if (cancelled) return
+      setSuggestedFriend({
+        ...candidate,
+        location: providerRow?.location || 'Nearby campus',
+      })
+      setSuggestedFriendStatus(status)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [uid])
+
+  async function handleSuggestedFriendAction() {
+    if (!uid || !suggestedFriend?.id || suggestedFriendLoading) return
+    const targetId = suggestedFriend.id
+    setSuggestedFriendLoading(true)
+    const priorStatus = suggestedFriendStatus
+
+    if (suggestedFriendStatus === 'none') {
+      const { error: insertError } = await supabase
+        .from('friend_requests')
+        .insert({ sender_id: uid, receiver_id: targetId })
+      if (insertError && insertError.code !== '23505') {
+        setSuggestedFriendLoading(false)
+        return
+      }
+    } else if (suggestedFriendStatus === 'pending_received') {
+      const { data: req } = await supabase
+        .from('friend_requests')
+        .select('id')
+        .eq('sender_id', targetId)
+        .eq('receiver_id', uid)
+        .eq('status', 'pending')
+        .maybeSingle()
+      if (req?.id) {
+        await supabase.from('friend_requests').update({ status: 'accepted' }).eq('id', req.id)
+      }
+    }
+
+    const nextStatus = await fetchFriendshipStatus(uid, targetId)
+    setSuggestedFriendStatus(nextStatus)
+    if (priorStatus !== 'friends' && nextStatus === 'friends') {
+      setFriendCount((c) => c + 1)
+    }
+    setSuggestedFriendLoading(false)
+  }
 
   const initials = (userProfile?.display_name || session?.user?.email || '?')
     .split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -492,7 +588,7 @@ export default function Profile({ session, userProfile, onUpdate }) {
             </div>
           </div>
 
-          <div className="profile-about-row profile-about-row-single">
+          <div className="profile-about-row">
             <div className="profile-info-block">
               <h1 className="profile-display-name">{userProfile?.display_name || 'User'}</h1>
               <p className="profile-friends">{friendCount} Following  {friendCount} Followers</p>
@@ -501,6 +597,51 @@ export default function Profile({ session, userProfile, onUpdate }) {
                 <p className="profile-about-text">{aboutText || 'Add a short bio in settings.'}</p>
               </section>
             </div>
+            <aside className="profile-friends-panel" aria-label="Friends and suggestions">
+              <h2 className="profile-friends-panel-title">Suggested for you</h2>
+              {suggestedFriend ? (
+                <article className="profile-friend-suggestion-card">
+                  <div className="profile-friend-suggestion-avatar" aria-hidden>
+                    {suggestedFriend.avatar_url ? (
+                      <img src={suggestedFriend.avatar_url} alt="" className="profile-friend-suggestion-avatar-img" />
+                    ) : (
+                      (suggestedFriend.display_name || 'ST')
+                        .split(' ')
+                        .map((n) => n[0])
+                        .join('')
+                        .toUpperCase()
+                        .slice(0, 2)
+                    )}
+                  </div>
+                  <div className="profile-friend-suggestion-main">
+                    <p className="profile-friend-suggestion-name">{suggestedFriend.display_name || 'New friend'}</p>
+                    <p className="profile-friend-suggestion-subtitle">{suggestedFriend.location || 'Nearby campus'}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className={`profile-friend-suggestion-add-btn${suggestedFriendStatus === 'friends' ? ' profile-friend-suggestion-add-btn-active' : ''}${suggestedFriendStatus === 'pending_sent' ? ' profile-friend-suggestion-add-btn-pending' : ''}`}
+                    aria-label="Add suggested friend"
+                    onClick={handleSuggestedFriendAction}
+                    disabled={suggestedFriendLoading || suggestedFriendStatus === 'pending_sent' || suggestedFriendStatus === 'friends'}
+                  >
+                    <AddFriendIcon />
+                    <span>{{
+                      none: 'Add',
+                      pending_sent: 'Pending',
+                      pending_received: 'Accept',
+                      friends: 'Friends',
+                    }[suggestedFriendStatus]}</span>
+                  </button>
+                </article>
+              ) : (
+                <article className="profile-friend-suggestion-card">
+                  <div className="profile-friend-suggestion-main">
+                    <p className="profile-friend-suggestion-name">No suggestions right now</p>
+                    <p className="profile-friend-suggestion-subtitle">Check back later for new people to connect with.</p>
+                  </div>
+                </article>
+              )}
+            </aside>
           </div>
 
           <nav className="profile-tabs profile-tabs-below-about" aria-label="Profile sections">
@@ -526,51 +667,25 @@ export default function Profile({ session, userProfile, onUpdate }) {
                 ) : (
                   <div className="profile-services-grid">
                     {providerServices.map((svc) => {
-                      const gallery = getServiceGalleryUrls(svc)
-                      const mainImg = gallery[0]
-                      const thumbs = gallery.slice(0, 4)
                       const st = serviceStats[svc.id] || {
                         revenue: 0,
                         bookings: 0,
                         avgRating: null,
                         reviewCount: 0,
                       }
+                      const rating =
+                        st.avgRating != null ? st.avgRating : Number(provider?.avg_rating || 0)
                       return (
-                        <article key={svc.id} className="profile-service-card profile-service-card-rich">
-                          <div
-                            className={`profile-service-thumb${mainImg ? '' : ' profile-service-thumb-empty'}`}
-                            style={mainImg ? { backgroundImage: `url(${mainImg})` } : {}}
-                          >
-                            {!mainImg ? <ImagePlaceholderIcon /> : null}
-                          </div>
-                          {thumbs.length > 0 && (
-                            <div className="profile-service-thumbs" aria-hidden>
-                              {thumbs.map((url, i) => (
-                                <span
-                                  key={`${svc.id}-t-${i}`}
-                                  className="profile-service-thumb-mini"
-                                  style={{ backgroundImage: `url(${url})` }}
-                                />
-                              ))}
-                            </div>
-                          )}
-                          <h3 className="profile-service-name">{svc.name}</h3>
-                          <div className="profile-service-stats profile-service-stats-stack">
-                            <div className="profile-service-stat-line">
-                              <span className="profile-service-stat-star" aria-hidden>★</span>
-                              {st.avgRating != null ? st.avgRating.toFixed(2) : '—'}
-                              {st.reviewCount > 0 ? (
-                                <span className="profile-service-stat-sub"> ({st.reviewCount} reviews)</span>
-                              ) : null}
-                            </div>
-                            <div className="profile-service-stat-line">
-                              {st.bookings} {st.bookings === 1 ? 'booking' : 'bookings'}
-                            </div>
-                            <div className="profile-service-stat-line profile-service-stat-line-money">
-                              ${Number(st.revenue || 0).toFixed(2)} earned
-                            </div>
-                          </div>
-                        </article>
+                        <ServiceListingCard
+                          key={svc.id}
+                          resetKey={svc.id}
+                          portfolioUrls={galleryUrlsForService(svc)}
+                          serviceName={svc.name}
+                          priceLabel={priceLabelForService(svc)}
+                          rating={rating}
+                          providerName={userProfile?.display_name || 'You'}
+                          providerAvatarUrl={userProfile?.avatar_url || null}
+                        />
                       )
                     })}
                   </div>
@@ -586,69 +701,19 @@ export default function Profile({ session, userProfile, onUpdate }) {
                   </p>
                 ) : (
                   <div className="profile-services-grid">
-                    {favoritedServices.map((svc) => {
-                      const gallery = getServiceGalleryUrls(svc)
-                      const mainImg = gallery[0]
-                      const thumbs = gallery.slice(0, 4)
-                      const dur = '~30 min'
-                      const loc = svc.location || ''
-                      const metaBits = [loc, dur].filter(Boolean)
-                      const metaLine = metaBits.join(' · ')
-                      const pInitials = (svc.provider_name || 'P')
-                        .split(' ')
-                        .map((n) => n[0])
-                        .join('')
-                        .toUpperCase()
-                        .slice(0, 2)
-                      return (
-                        <Link
-                          key={svc.id}
-                          to={`/provider/${svc.provider_id}?service=${encodeURIComponent(svc.id)}`}
-                          className="profile-service-card profile-service-card-rich profile-favorited-service-card"
-                        >
-                          <div
-                            className={`profile-service-thumb${mainImg ? '' : ' profile-service-thumb-empty'}`}
-                            style={mainImg ? { backgroundImage: `url(${mainImg})` } : {}}
-                          >
-                            {!mainImg ? <ImagePlaceholderIcon /> : null}
-                          </div>
-                          {thumbs.length > 0 && (
-                            <div className="profile-service-thumbs" aria-hidden>
-                              {thumbs.map((url, i) => (
-                                <span
-                                  key={`${svc.id}-t-${i}`}
-                                  className="profile-service-thumb-mini"
-                                  style={{ backgroundImage: `url(${url})` }}
-                                />
-                              ))}
-                            </div>
-                          )}
-                          <h3 className="profile-service-name">{svc.name}</h3>
-                          <div className="profile-favorited-provider-row">
-                            {svc.provider_avatar ? (
-                              <img src={svc.provider_avatar} alt="" className="profile-favorited-provider-avatar" />
-                            ) : (
-                              <span className="profile-favorited-provider-avatar profile-favorited-provider-initials">
-                                {pInitials}
-                              </span>
-                            )}
-                            <span className="profile-favorited-provider-name">{svc.provider_name}</span>
-                            {metaLine ? (
-                              <span className="profile-favorited-provider-meta">{metaLine}</span>
-                            ) : null}
-                          </div>
-                          {svc.minPrice != null ? (
-                            <p className="profile-favorited-price">From ${Number(svc.minPrice).toFixed(0)}</p>
-                          ) : null}
-                          {svc.description ? (
-                            <div className="profile-favorited-overview">
-                              <span className="profile-favorited-overview-label">Overview</span>
-                              <p className="profile-favorited-overview-text">{svc.description}</p>
-                            </div>
-                          ) : null}
-                        </Link>
-                      )
-                    })}
+                    {favoritedServices.map((svc) => (
+                      <ServiceListingCard
+                        key={svc.id}
+                        resetKey={svc.id}
+                        portfolioUrls={galleryUrlsForService(svc)}
+                        serviceName={svc.name}
+                        priceLabel={priceLabelForService(svc)}
+                        rating={svc.provider_avg_rating ?? 0}
+                        providerName={svc.provider_name}
+                        providerAvatarUrl={svc.provider_avatar || null}
+                        linkTo={`/provider/${svc.provider_id}?service=${encodeURIComponent(svc.id)}`}
+                      />
+                    ))}
                   </div>
                 )}
               </section>

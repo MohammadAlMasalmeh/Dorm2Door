@@ -56,7 +56,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--d2d-card-gallery-gap-pct, 3%);
 }
 .figma-listing .listing-gallery-main {
   position: relative;
@@ -109,13 +109,16 @@
   height: 28px;
 }
 .figma-listing .listing-gallery-thumbs {
-  display: flex;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--d2d-card-gallery-gap-pct, 3%);
+  width: 100%;
 }
 .figma-listing .listing-gallery-thumb {
-  flex: 1;
-  aspect-ratio: 1;
-  border-radius: 2px;
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  min-width: 0;
+  border-radius: clamp(4px, 5%, 10px);
   background: #e2e2e2;
   background-size: cover;
   background-position: center;
@@ -617,8 +620,5 @@
   }
   .figma-listing.listing-page {
     grid-template-columns: 1fr;
-  }
-  .figma-listing .listing-gallery-main {
-    aspect-ratio: 4/3;
   }
 }

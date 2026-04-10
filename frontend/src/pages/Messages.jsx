@@ -77,13 +77,13 @@ export default function Messages({ session, userProfile }) {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [convoSearch, setConvoSearch] = useState('')
   const [peerDetail, setPeerDetail] = useState(null)
   const [newMsgOpen, setNewMsgOpen] = useState(false)
   const [newMsgQ, setNewMsgQ] = useState('')
   const [newMsgResults, setNewMsgResults] = useState([])
   const [newMsgBusy, setNewMsgBusy] = useState(false)
   const [newMsgErr, setNewMsgErr] = useState('')
+  const [convoSearch, setConvoSearch] = useState('')
   const messagesEndRef = useRef(null)
   const newMsgSearchDebounceRef = useRef(null)
   const uid = session?.user?.id
@@ -190,6 +190,7 @@ export default function Messages({ session, userProfile }) {
       setPeerDetail(null)
       return
     }
+    setPeerDetail(null)
     let cancelled = false
     async function loadPeer() {
       const oid = activeConvoData.otherId
@@ -310,12 +311,13 @@ export default function Messages({ session, userProfile }) {
   }
 
   const filteredConversations = useMemo(() => {
-    const s = convoSearch.trim().toLowerCase()
-    if (!s) return conversations
-    return conversations.filter(
-      c =>
-        (c.otherName || '').toLowerCase().includes(s) || (c.lastMessage || '').toLowerCase().includes(s),
-    )
+    const q = convoSearch.trim().toLowerCase()
+    if (!q) return conversations
+    return conversations.filter((c) => {
+      const name = (c.otherName || '').toLowerCase()
+      const preview = (c.lastMessage || '').toLowerCase()
+      return name.includes(q) || preview.includes(q)
+    })
   }, [conversations, convoSearch])
 
   const messageBlocks = useMemo(() => {
@@ -331,6 +333,10 @@ export default function Messages({ session, userProfile }) {
     }
     return blocks
   }, [messages])
+
+  const peerReady = Boolean(
+    activeConvoData?.otherId && peerDetail?.user?.id === activeConvoData.otherId,
+  )
 
   const isProviderPeer = peerDetail?.user?.role === 'provider'
   const rating = isProviderPeer
@@ -482,7 +488,7 @@ export default function Messages({ session, userProfile }) {
                 <div ref={messagesEndRef} />
               </div>
 
-              <form className="messages-compose" onSubmit={handleSend}>
+              <form id="messages-compose-form" className="messages-compose" onSubmit={handleSend}>
                 <button type="button" className="messages-compose-add" tabIndex={-1} aria-hidden title="Attachments coming soon">
                   +
                 </button>
@@ -495,7 +501,12 @@ export default function Messages({ session, userProfile }) {
                   disabled={sending}
                   autoComplete="off"
                 />
-                <button type="submit" className="messages-compose-send" disabled={sending || !input.trim()} aria-label="Send message">
+                <button
+                  type="submit"
+                  className="messages-compose-send messages-compose-send--inline"
+                  disabled={sending || !input.trim()}
+                  aria-label="Send message"
+                >
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                     <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
@@ -506,13 +517,30 @@ export default function Messages({ session, userProfile }) {
         </section>
 
         <aside className="messages-col messages-col-context">
-          {!activeConvo || !peerDetail?.user ? (
+          {!activeConvo ? (
             <div className="messages-context-empty">
               <p>Open a chat to see profile and service details.</p>
             </div>
+          ) : !peerReady ? (
+            <div className="messages-context-card messages-context-card-loading">
+              <p className="messages-context-loading-text">Loading profile…</p>
+              <div className="messages-context-send-row">
+                <button
+                  type="submit"
+                  form="messages-compose-form"
+                  className="messages-context-send"
+                  disabled={sending || !input.trim()}
+                  aria-label="Send message"
+                >
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              </div>
+            </div>
           ) : (
             <>
-              <div className="messages-context-card">
+              <div className="messages-context-card messages-context-card-profile">
                 <div className="messages-context-profile">
                   <div className="messages-context-avatar-lg">
                     {peerDetail.user.avatar_url ? (
@@ -521,7 +549,7 @@ export default function Messages({ session, userProfile }) {
                       <span>{(peerDetail.user.display_name || 'U').slice(0, 2).toUpperCase()}</span>
                     )}
                   </div>
-                  <div>
+                  <div className="messages-context-profile-text">
                     <h2 className="messages-context-name">{peerDetail.user.display_name || 'User'}</h2>
                     <div className="messages-context-rating">
                       <Stars value={rating} />
@@ -530,6 +558,19 @@ export default function Messages({ session, userProfile }) {
                       )}
                     </div>
                   </div>
+                </div>
+                <div className="messages-context-send-row">
+                  <button
+                    type="submit"
+                    form="messages-compose-form"
+                    className="messages-context-send"
+                    disabled={sending || !input.trim()}
+                    aria-label="Send message"
+                  >
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                      <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
                 </div>
               </div>
 

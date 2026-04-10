@@ -567,7 +567,92 @@
 }
 
 .provider-setup-page--portfolio-only {
-  max-width: 900px;
+  max-width: none;
+  width: 100%;
+}
+
+/* Edit services: multi-column grid (typically 3–4 cards per row on desktop) */
+.provider-setup-layout--single.provider-setup-layout--portfolio-grid {
+  max-width: none;
+  width: 100%;
+}
+
+.provider-setup-services-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+  width: 100%;
+  align-items: start;
+}
+
+.provider-setup-services-grid .figma-results-card {
+  min-width: 0;
+  width: 100%;
+}
+
+/* Slightly tighter card chrome + type so tiles read well at ~1/4 main width */
+.provider-setup-page .provider-setup-services-grid .figma-results-card {
+  padding: 10px;
+  gap: 8px;
+}
+
+.provider-setup-page .provider-setup-services-grid .figma-results-card-body h3 {
+  font-size: 16px;
+}
+
+.provider-setup-page .provider-setup-services-grid .figma-results-price-line {
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.provider-setup-page .provider-setup-services-grid .figma-results-rating-line {
+  font-size: 13px;
+}
+
+.provider-setup-page .provider-setup-services-grid .figma-results-provider-name {
+  font-size: 12px;
+}
+
+.provider-setup-page .provider-setup-services-grid .figma-results-provider-avatar,
+.provider-setup-page .provider-setup-services-grid .figma-results-provider-initials {
+  width: 20px;
+  height: 20px;
+  font-size: 9px;
+}
+
+.provider-setup-page .provider-setup-services-grid .figma-results-card-toolbar {
+  margin-top: 6px;
+  padding-top: 8px;
+  gap: 6px;
+}
+
+.provider-setup-page .provider-setup-services-grid a.figma-results-toolbar-edit {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.provider-setup-page .provider-setup-services-grid .figma-results-toolbar-remove {
+  width: 32px;
+  height: 32px;
+  font-size: 1.1rem;
+}
+
+@media (max-width: 1180px) {
+  .provider-setup-services-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .provider-setup-services-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .provider-setup-services-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .provider-setup-add-btn {

@@ -1,11 +1,18 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
-import { Link, useLocation, useSearchParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
-import { galleryUrlsForService } from '../utils/serviceImages'
+import ServiceListingCard from '../components/ServiceListingCard'
+import { galleryUrlsForService, priceLabelForService } from '../serviceListingUtils'
 
 function normalizeForSearch(text) {
   return (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')
 }
+
+const SECTION_TABS = [
+  { id: 'popular', label: 'Popular with friends' },
+  { id: 'suggested', label: 'Suggested For you' },
+  { id: 'recent', label: 'Recently Viewed' },
+]
 
 function getSectionTitle(section) {
   if (section === 'suggested') return 'Suggested For you'
@@ -24,125 +31,14 @@ function haversineKm(lat1, lon1, lat2, lon2) {
   return R * c
 }
 
-function priceFieldsForService(s) {
+function priceFieldsForService(service) {
   const prices = []
-  if (s?.price != null) prices.push(Number(s.price))
-  ;(s?.service_options || []).forEach((opt) => {
+  if (service?.price != null) prices.push(Number(service.price))
+  ;(service?.service_options || []).forEach((opt) => {
     if (opt?.price != null) prices.push(Number(opt.price))
   })
-  if (prices.length === 0) return { minPriceNum: null, maxPriceNum: null, priceLabel: null }
-  const min = Math.min(...prices)
-  const max = Math.max(...prices)
-  const label = max > min ? `$${Math.round(min)}-$${Math.round(max)}` : `$${Math.round(min)}`
-  return { minPriceNum: min, maxPriceNum: max, priceLabel: label }
-}
-
-/** One search row per service (matches Home); same provider with multiple listings appears as separate cards. */
-function mapProviderToServiceRows(provider) {
-  const services = (provider?.services || []).filter(Boolean)
-  if (services.length === 0) return []
-
-  const providerName = provider?.users?.display_name || 'Provider'
-  const avgRating = Number(provider?.avg_rating || 0)
-  const tags = provider?.tags || []
-  const location = (provider?.location || '').trim()
-  const latRaw = provider?.latitude
-  const lngRaw = provider?.longitude
-  const latitude = latRaw != null && latRaw !== '' ? Number(latRaw) : null
-  const longitude = lngRaw != null && lngRaw !== '' ? Number(lngRaw) : null
-  const reviewCount = Number(provider?.review_count) || 0
-  const providerBio = (provider?.bio || '').trim()
-
-  return services.map((s) => {
-    const { minPriceNum, maxPriceNum, priceLabel } = priceFieldsForService(s)
-    const optionNames = (s.service_options || []).map((o) => o?.name).filter(Boolean)
-    const desc = (s?.description || '').trim()
-    const snippet = desc || providerBio || ''
-    const name = s?.name || 'Service'
-    const matchHaystack = `${name} ${optionNames.join(' ')} ${desc} ${providerName} ${tags.join(' ')} ${providerBio}`
-
-    return {
-      key: `${provider.id}:${s.id}`,
-      providerId: provider.id,
-      serviceId: s.id,
-      portfolioUrls: galleryUrlsForService(s),
-      serviceName: name,
-      rating: avgRating,
-      priceLabel: priceLabel || '$10',
-      snippet,
-      providerName,
-      tags,
-      location,
-      latitude: Number.isFinite(latitude) ? latitude : null,
-      longitude: Number.isFinite(longitude) ? longitude : null,
-      reviewCount,
-      minPriceNum,
-      maxPriceNum,
-      matchHaystack,
-    }
-  })
-}
-
-function SearchResultCard({ row }) {
-  const urls = row.portfolioUrls || []
-  const [activeIdx, setActiveIdx] = useState(0)
-
-  useEffect(() => {
-    setActiveIdx(0)
-  }, [row.key])
-
-  const safeIdx = urls.length ? Math.min(Math.max(0, activeIdx), urls.length - 1) : 0
-  const mainUrl = urls[safeIdx] || ''
-  const thumbEntries = urls
-    .map((url, i) => ({ url, i }))
-    .filter(({ i }) => i !== safeIdx)
-    .slice(0, 5)
-
-  const hasMedia = urls.length > 0
-  const onPickThumb = useCallback((i) => {
-    setActiveIdx(i)
-  }, [])
-
-  return (
-    <div className={`figma-results-card${!hasMedia ? ' figma-results-card--no-media' : ''}`}>
-      {hasMedia && (
-        <>
-          <div
-            className="figma-results-main-img"
-            style={{ backgroundImage: `url(${mainUrl})` }}
-            role="img"
-            aria-label="Listing preview"
-          />
-          {thumbEntries.length > 0 ? (
-            <div className="figma-results-sub-imgs" role="group" aria-label="More photos">
-              {thumbEntries.map(({ url, i }) => (
-                <button
-                  key={`${url}-${i}`}
-                  type="button"
-                  className="figma-results-sub-img figma-results-sub-img--filled figma-results-sub-img-btn"
-                  style={{ backgroundImage: `url(${url})` }}
-                  onClick={() => onPickThumb(i)}
-                  aria-label={`Show image ${i + 1} of ${urls.length}`}
-                />
-              ))}
-            </div>
-          ) : null}
-        </>
-      )}
-      <Link
-        to={`/provider/${row.providerId}?service=${encodeURIComponent(row.serviceId)}`}
-        className="figma-results-card-body figma-results-card-body--link"
-      >
-        <h3>{row.serviceName}</h3>
-        <p className="figma-results-price-line">
-          From {row.priceLabel} <span>★</span> {row.rating.toFixed(2)}
-        </p>
-        {row.snippet ? (
-          <p className="figma-results-snippet">{row.snippet}</p>
-        ) : null}
-      </Link>
-    </div>
-  )
+  if (prices.length === 0) return { minPriceNum: null, maxPriceNum: null }
+  return { minPriceNum: Math.min(...prices), maxPriceNum: Math.max(...prices) }
 }
 
 /** Default listing order: best average rating first, then most-reviewed as tiebreaker. */
@@ -159,9 +55,12 @@ function sortListings(rows, sortKey, userLatLng) {
     case 'price_desc':
       sorted.sort((a, b) => (b.minPriceNum ?? ninf) - (a.minPriceNum ?? ninf))
       break
+    case 'reviews_desc':
+      sorted.sort((a, b) => (b.reviewCount || 0) - (a.reviewCount || 0) || b.rating - a.rating)
+      break
     case 'distance_asc': {
       const ratingFallback = () =>
-        sorted.sort((a, b) => b.rating - a.rating || b.reviewCount - a.reviewCount)
+        sorted.sort((a, b) => b.rating - a.rating || (b.reviewCount || 0) - (a.reviewCount || 0))
       if (!userLatLng || userLatLng.length < 2) {
         ratingFallback()
         break
@@ -174,27 +73,21 @@ function sortListings(rows, sortKey, userLatLng) {
       sorted.sort((a, b) => dist(a) - dist(b) || b.rating - a.rating)
       break
     }
-    case 'reviews_desc':
-      sorted.sort((a, b) => b.reviewCount - a.reviewCount || b.rating - a.rating)
-      break
     case SORT_RATING_DESC:
     default:
-      sorted.sort((a, b) => b.rating - a.rating || b.reviewCount - a.reviewCount)
+      sorted.sort((a, b) => b.rating - a.rating || (b.reviewCount || 0) - (a.reviewCount || 0))
       break
   }
   return sorted
 }
 
-function ResultsFilterMenu({ label, menuId, isOpen, onToggle, isActive, children }) {
+function ResultsFilterMenu({ label, isOpen, onToggle, isActive, children }) {
   return (
-    <div className="figma-results-filter-wrap">
+    <div style={{ position: 'relative', display: 'inline-block' }}>
       <button
         type="button"
-        id={`${menuId}-btn`}
-        className={`figma-results-filter-btn${isActive ? ' figma-results-filter-btn--active' : ''}`}
+        className={`figma-results-filter-btn${isActive ? ' active' : ''}`}
         aria-expanded={isOpen}
-        aria-haspopup="menu"
-        aria-controls={isOpen ? `${menuId}-menu` : undefined}
         onClick={(e) => {
           e.stopPropagation()
           onToggle()
@@ -204,10 +97,19 @@ function ResultsFilterMenu({ label, menuId, isOpen, onToggle, isActive, children
       </button>
       {isOpen ? (
         <div
-          id={`${menuId}-menu`}
-          className="figma-results-filter-panel"
           role="menu"
-          aria-labelledby={`${menuId}-btn`}
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 8px)',
+            left: 0,
+            zIndex: 10,
+            minWidth: 220,
+            padding: 10,
+            borderRadius: 12,
+            border: '2px solid var(--figma-dark)',
+            background: 'var(--figma-white)',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
+          }}
           onClick={(e) => e.stopPropagation()}
         >
           {children}
@@ -222,8 +124,8 @@ function FilterOption({ onSelect, children }) {
     <button
       type="button"
       role="menuitem"
-      className="figma-results-filter-option"
-      onMouseDown={(e) => e.preventDefault()}
+      className="figma-results-topic-btn"
+      style={{ width: '100%', textAlign: 'left' }}
       onClick={onSelect}
     >
       {children}
@@ -231,42 +133,88 @@ function FilterOption({ onSelect, children }) {
   )
 }
 
+/**
+ * One listing per service (same mental model as Home service cards).
+ * A provider with multiple services appears as multiple cards.
+ */
+function mapProviderToServiceCards(provider) {
+  const providerName = provider?.users?.display_name || 'Provider'
+  const avgRating = Number(provider?.avg_rating || 0)
+  const reviewCount = Number(provider?.review_count || 0)
+  const services = (provider?.services || []).filter(Boolean)
+  const tags = provider?.tags || []
+  const bio = provider?.bio || ''
+  const providerAvatarUrl = provider?.users?.avatar_url || null
+  const latitude = provider?.latitude != null ? Number(provider.latitude) : null
+  const longitude = provider?.longitude != null ? Number(provider.longitude) : null
+
+  return services.map((service, idx) => {
+    const serviceName = service?.name || 'Service'
+    const optionNames = (service.service_options || []).map((o) => o?.name).filter(Boolean).join(' ')
+    const serviceDesc = (service?.description || '').trim()
+    const { minPriceNum, maxPriceNum } = priceFieldsForService(service)
+
+    return {
+      key: `${provider.id}:${service.id ?? `i${idx}`}`,
+      providerId: provider.id,
+      serviceId: service.id,
+      portfolioUrls: galleryUrlsForService(service),
+      serviceName,
+      rating: avgRating,
+      priceLabel: priceLabelForService(service),
+      minPriceNum,
+      maxPriceNum,
+      providerName,
+      providerAvatarUrl,
+      reviewCount,
+      latitude: Number.isFinite(latitude) ? latitude : null,
+      longitude: Number.isFinite(longitude) ? longitude : null,
+      tags,
+      matchHaystack: `${serviceName} ${optionNames} ${serviceDesc} ${providerName} ${tags.join(' ')} ${bio}`,
+    }
+  })
+}
+
 export default function SearchResults() {
   const [searchParams] = useSearchParams()
   const location = useLocation()
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [listings, setListings] = useState([])
   const [activeTopic, setActiveTopic] = useState('')
   const [openFilter, setOpenFilter] = useState(null)
   const [sortKey, setSortKey] = useState(SORT_RATING_DESC)
   const [userLatLng, setUserLatLng] = useState(null)
-  const [nearMeError, setNearMeError] = useState(null)
   const [nearMePending, setNearMePending] = useState(false)
-  const [sortHint, setSortHint] = useState(null)
+  const [nearMeError, setNearMeError] = useState('')
   const filtersRef = useRef(null)
-  const sortHintTimerRef = useRef(null)
   const sortKeyRef = useRef(sortKey)
   sortKeyRef.current = sortKey
 
-  const clearSortHintTimer = useCallback(() => {
-    if (sortHintTimerRef.current) window.clearTimeout(sortHintTimerRef.current)
-    sortHintTimerRef.current = null
-  }, [])
-
-  useEffect(() => () => clearSortHintTimer(), [clearSortHintTimer])
-
-  const section = searchParams.get('section') || location.state?.section || 'popular'
+  const rawSection = searchParams.get('section') || location.state?.section || 'popular'
+  const section = SECTION_TABS.some((t) => t.id === rawSection) ? rawSection : 'popular'
   const query = (searchParams.get('q') || location.state?.q || '').trim()
   const activeTags = Array.isArray(location.state?.activeTags) ? location.state.activeTags : []
+
+  const goToSection = useCallback(
+    (nextId) => {
+      const params = new URLSearchParams(searchParams)
+      params.set('section', nextId)
+      if (!query) params.delete('q')
+      else params.set('q', query)
+      navigate(`/search?${params.toString()}`, { replace: true, state: location.state })
+    },
+    [navigate, searchParams, query, location.state],
+  )
 
   useEffect(() => {
     let mounted = true
     async function fetchData() {
       setLoading(true)
       const fieldsWithCount =
-        'id, bio, tags, avg_rating, review_count, location, latitude, longitude, users (display_name), services (id, name, description, image_url, image_urls, price, service_options (name, price))'
+        'id, bio, tags, avg_rating, review_count, latitude, longitude, users (display_name, avatar_url), services (id, name, description, image_url, image_urls, price, service_options (name, price))'
       const fieldsLegacy =
-        'id, bio, tags, avg_rating, location, latitude, longitude, users (display_name), services (id, name, description, image_url, image_urls, price, service_options (name, price))'
+        'id, bio, tags, avg_rating, latitude, longitude, users (display_name, avatar_url), services (id, name, description, image_url, image_urls, price, service_options (name, price))'
 
       async function runQuery(fields) {
         return supabase
@@ -276,16 +224,12 @@ export default function SearchResults() {
       }
 
       const fieldsLegacyNoMulti =
-        'id, bio, tags, avg_rating, location, latitude, longitude, users (display_name), services (id, name, description, image_url, price, service_options (name, price))'
+        'id, bio, tags, avg_rating, latitude, longitude, users (display_name, avatar_url), services (id, name, description, image_url, price, service_options (name, price))'
       const fieldsWithCountNoMulti =
-        'id, bio, tags, avg_rating, review_count, location, latitude, longitude, users (display_name), services (id, name, description, image_url, price, service_options (name, price))'
+        'id, bio, tags, avg_rating, review_count, latitude, longitude, users (display_name, avatar_url), services (id, name, description, image_url, price, service_options (name, price))'
 
       let data
-      const baseAttempts = [fieldsWithCount, fieldsLegacy, fieldsWithCountNoMulti, fieldsLegacyNoMulti]
-      const attempts = [
-        ...baseAttempts,
-        ...baseAttempts.map((f) => f.replace(', latitude, longitude', '')),
-      ]
+      const attempts = [fieldsWithCount, fieldsLegacy, fieldsWithCountNoMulti, fieldsLegacyNoMulti]
       for (const fields of attempts) {
         const { data: rows, error } = await runQuery(fields)
         if (!error) {
@@ -297,6 +241,8 @@ export default function SearchResults() {
 
       if (!mounted) return
       let providers = (data || []).filter(p => p?.id && Array.isArray(p.services) && p.services.length > 0)
+
+      // If coords are missing from the join, fetch them directly and merge in.
       const ids = providers.map((p) => p.id).filter(Boolean)
       if (ids.length > 0) {
         const { data: coordRows, error: coordErr } = await supabase
@@ -316,7 +262,8 @@ export default function SearchResults() {
           })
         }
       }
-      const cards = providers.flatMap(mapProviderToServiceRows)
+
+      const cards = providers.flatMap(mapProviderToServiceCards)
       setListings(cards)
       setLoading(false)
     }
@@ -344,6 +291,16 @@ export default function SearchResults() {
     setActiveTopic(query ? query.toLowerCase() : '')
   }, [query])
 
+  useEffect(() => {
+    function onDocMouseDown(e) {
+      if (!openFilter) return
+      const el = filtersRef.current
+      if (el && !el.contains(e.target)) setOpenFilter(null)
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    return () => document.removeEventListener('mousedown', onDocMouseDown)
+  }, [openFilter])
+
   const filteredListings = useMemo(() => {
     const normalizedQuery = normalizeForSearch(query)
     const normalizedTopic = normalizeForSearch(activeTopic)
@@ -363,32 +320,19 @@ export default function SearchResults() {
     return base.filter((row) => normalizeForSearch(row.matchHaystack).includes(normalizedTopic))
   }, [listings, section, query, activeTags, activeTopic])
 
-  const displayedListings = useMemo(
-    () => sortListings(filteredListings, sortKey, userLatLng),
-    [filteredListings, sortKey, userLatLng]
-  )
+  const displayedListings = useMemo(() => {
+    return sortListings(filteredListings, sortKey, userLatLng)
+  }, [filteredListings, sortKey, userLatLng])
 
   const withMapPinCount = useMemo(
     () => displayedListings.filter((r) => r.latitude != null && r.longitude != null).length,
     [displayedListings]
   )
 
-  useEffect(() => {
-    function onDocMouseDown(e) {
-      if (!openFilter) return
-      const el = filtersRef.current
-      if (el && !el.contains(e.target)) setOpenFilter(null)
-    }
-    document.addEventListener('mousedown', onDocMouseDown)
-    return () => document.removeEventListener('mousedown', onDocMouseDown)
-  }, [openFilter])
-
-  const closeMenus = () => setOpenFilter(null)
-
   const requestNearMeSort = useCallback(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       setNearMeError('Location is not available in this browser.')
-      closeMenus()
+      setOpenFilter(null)
       return
     }
     navigator.geolocation.getCurrentPosition(
@@ -396,7 +340,7 @@ export default function SearchResults() {
         setNearMePending(false)
         setUserLatLng([pos.coords.latitude, pos.coords.longitude])
         setSortKey('distance_asc')
-        setNearMeError(null)
+        setNearMeError('')
       },
       () => {
         setNearMePending(false)
@@ -404,12 +348,10 @@ export default function SearchResults() {
       },
       { timeout: 12000, maximumAge: 600000, enableHighAccuracy: false }
     )
-    setNearMeError(null)
-    setSortHint(null)
-    clearSortHintTimer()
+    setNearMeError('')
     setNearMePending(true)
-    closeMenus()
-  }, [clearSortHintTimer])
+    setOpenFilter(null)
+  }, [])
 
   return (
     <div className="figma-search-page">
@@ -421,83 +363,59 @@ export default function SearchResults() {
             </p>
             <Link to="/" className="figma-results-close-link">Back</Link>
           </div>
+          <nav className="figma-results-section-tabs" aria-label="Home sections">
+            {SECTION_TABS.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                className={`figma-results-section-tab${section === id ? ' active' : ''}`}
+                aria-current={section === id ? 'page' : undefined}
+                onClick={() => goToSection(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
         </div>
         <div className="figma-results-filters" ref={filtersRef}>
           <ResultsFilterMenu
             label="Price"
-            menuId="figma-filter-price"
             isOpen={openFilter === 'price'}
             onToggle={() => setOpenFilter((o) => (o === 'price' ? null : 'price'))}
             isActive={sortKey === 'price_asc' || sortKey === 'price_desc'}
           >
-            <FilterOption onSelect={() => { setSortKey('price_asc'); closeMenus() }}>Low to high</FilterOption>
-            <FilterOption onSelect={() => { setSortKey('price_desc'); closeMenus() }}>High to low</FilterOption>
-            <FilterOption onSelect={() => { setSortKey(SORT_RATING_DESC); closeMenus() }}>Best rated first</FilterOption>
+            <FilterOption onSelect={() => { setSortKey('price_asc'); setOpenFilter(null) }}>Low to high</FilterOption>
+            <FilterOption onSelect={() => { setSortKey('price_desc'); setOpenFilter(null) }}>High to low</FilterOption>
+            <FilterOption onSelect={() => { setSortKey(SORT_RATING_DESC); setOpenFilter(null) }}>Show all (best rated)</FilterOption>
           </ResultsFilterMenu>
+
           <ResultsFilterMenu
             label="Near me"
-            menuId="figma-filter-near"
             isOpen={openFilter === 'near'}
             onToggle={() => setOpenFilter((o) => (o === 'near' ? null : 'near'))}
             isActive={sortKey === 'distance_asc'}
           >
-            <p className="figma-results-filter-panel-intro">
-              Uses this device’s location (you’ll be prompted to allow it). To sort by rating again, choose Best rated first under Price.
-            </p>
+            <div style={{ fontSize: 13, opacity: 0.8, marginBottom: 8, lineHeight: 1.3 }}>
+              Uses this device’s location (you’ll be prompted). Choose “Show all (best rated)” under Price to go back.
+            </div>
             <FilterOption onSelect={requestNearMeSort}>Nearest first</FilterOption>
           </ResultsFilterMenu>
+
           <ResultsFilterMenu
             label="Reviews"
-            menuId="figma-filter-reviews"
             isOpen={openFilter === 'reviews'}
             onToggle={() => setOpenFilter((o) => (o === 'reviews' ? null : 'reviews'))}
-            isActive={sortKey === 'reviews_desc'}
+            isActive={sortKey === 'reviews_desc' || sortKey === SORT_RATING_DESC}
           >
-            <FilterOption
-              onSelect={() => {
-                closeMenus()
-                if (sortKeyRef.current === SORT_RATING_DESC) {
-                  clearSortHintTimer()
-                  setSortHint('You’re already sorted by highest rating first (that’s the default).')
-                  sortHintTimerRef.current = window.setTimeout(() => setSortHint(null), 3200)
-                  return
-                }
-                clearSortHintTimer()
-                setSortHint(null)
-                setSortKey(SORT_RATING_DESC)
-              }}
-            >
-              Highest rated
-            </FilterOption>
-            <FilterOption
-              onSelect={() => {
-                closeMenus()
-                clearSortHintTimer()
-                setSortHint(null)
-                setSortKey('reviews_desc')
-              }}
-            >
-              Most reviewed
-            </FilterOption>
+            <FilterOption onSelect={() => { setSortKey(SORT_RATING_DESC); setOpenFilter(null) }}>Top rated</FilterOption>
+            <FilterOption onSelect={() => { setSortKey('reviews_desc'); setOpenFilter(null) }}>Most reviewed</FilterOption>
+            <FilterOption onSelect={() => { setSortKey(SORT_RATING_DESC); setOpenFilter(null) }}>Show all (best rated)</FilterOption>
           </ResultsFilterMenu>
         </div>
-        {nearMePending ? (
-          <p className="figma-results-filter-hint" role="status">
-            Getting your location…
-          </p>
-        ) : null}
-        {nearMeError ? (
-          <p className="figma-results-filter-hint figma-results-filter-hint--error" role="status">
-            {nearMeError}
-          </p>
-        ) : null}
-        {!nearMePending && !nearMeError && sortHint ? (
-          <p className="figma-results-filter-hint" role="status">
-            {sortHint}
-          </p>
-        ) : null}
+        {nearMePending && <p className="figma-empty">Getting your location…</p>}
+        {nearMeError && <p className="figma-empty">{nearMeError}</p>}
         {sortKey === 'distance_asc' && userLatLng && !nearMePending ? (
-          <p className="figma-results-filter-hint" role="status">
+          <p className="figma-empty">
             {withMapPinCount === 0
               ? 'No providers have a map location on file yet, so distance can’t change the order. They’re still listed by rating.'
               : `Sorted by distance from you. ${withMapPinCount === displayedListings.length ? 'All' : `${withMapPinCount} of ${displayedListings.length}`} listings have a map pin; the rest are listed after them.`}
@@ -524,7 +442,21 @@ export default function SearchResults() {
         ) : (
           <div className="figma-results-grid">
             {displayedListings.map((row) => (
-              <SearchResultCard key={row.key} row={row} />
+              <ServiceListingCard
+                key={row.key}
+                resetKey={row.key}
+                portfolioUrls={row.portfolioUrls}
+                serviceName={row.serviceName}
+                priceLabel={row.priceLabel}
+                rating={row.rating}
+                providerName={row.providerName}
+                providerAvatarUrl={row.providerAvatarUrl}
+                linkTo={
+                  row.serviceId != null && row.serviceId !== ''
+                    ? `/provider/${row.providerId}?service=${encodeURIComponent(String(row.serviceId))}`
+                    : `/provider/${row.providerId}`
+                }
+              />
             ))}
           </div>
         )}

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import ProviderServicesShell from '../components/ProviderServicesShell'
+import ServiceListingCard from '../components/ServiceListingCard'
+import { galleryUrlsForService, priceLabelForService } from '../serviceListingUtils'
 
 export default function ProviderSetup({ session, userProfile, onUpdate }) {
   const navigate = useNavigate()
@@ -84,7 +86,7 @@ export default function ProviderSetup({ session, userProfile, onUpdate }) {
           <h1 className="provider-setup-title">My Services</h1>
         </header>
 
-        <div className="provider-setup-layout provider-setup-layout--single">
+        <div className="provider-setup-layout provider-setup-layout--single provider-setup-layout--portfolio-grid">
           <div className="provider-setup-services-col" id="add-service">
             <div className="provider-setup-services-header">
               <h2 className="provider-setup-services-title">Portfolio &amp; services</h2>
@@ -101,34 +103,35 @@ export default function ProviderSetup({ session, userProfile, onUpdate }) {
               </div>
             )}
 
-            {profile && services.map((svc) => (
-              <div key={svc.id} className="provider-setup-service-card">
-                <div
-                  className="provider-setup-service-card-image"
-                  style={svc.image_url ? { backgroundImage: `url(${svc.image_url})` } : {}}
-                />
-                <div className="provider-setup-service-card-body">
-                  <div className="provider-setup-service-card-info">
-                    <p className="provider-setup-service-card-name">{svc.name}</p>
-                    {svc.description && <p className="provider-setup-service-card-desc">{svc.description}</p>}
-                    {(svc.service_options && svc.service_options.length) > 0 && (
-                      <ul className="provider-setup-service-options-list">
-                        {(svc.service_options || []).map((opt) => (
-                          <li key={opt.id}>
-                            <span className="provider-setup-service-option-name">{opt.name}</span>
-                            <span className="provider-setup-service-card-price">${Number(opt.price).toFixed(2)}</span>
-                          </li>
-                        ))}
-                      </ul>
+            {profile && services.length > 0 && (
+              <div className="provider-setup-services-grid">
+                {services.map((svc) => (
+                  <ServiceListingCard
+                    key={svc.id}
+                    resetKey={svc.id}
+                    portfolioUrls={galleryUrlsForService(svc)}
+                    serviceName={svc.name}
+                    priceLabel={priceLabelForService(svc)}
+                    rating={Number(profile.avg_rating || 0)}
+                    providerName={userProfile?.display_name || 'You'}
+                    providerAvatarUrl={userProfile?.avatar_url || null}
+                    toolbar={(
+                      <div className="figma-results-card-toolbar">
+                        <Link to={`/my-services/edit/${svc.id}`} className="figma-results-toolbar-edit">Edit</Link>
+                        <button
+                          type="button"
+                          className="figma-results-toolbar-remove"
+                          onClick={() => deleteService(svc)}
+                          aria-label={`Delete ${svc.name}`}
+                        >
+                          ×
+                        </button>
+                      </div>
                     )}
-                  </div>
-                  <div className="provider-setup-service-card-actions">
-                    <Link to={`/my-services/edit/${svc.id}`} className="provider-setup-service-card-edit">Edit</Link>
-                    <button type="button" className="provider-setup-service-card-remove" onClick={() => deleteService(svc)} aria-label={`Delete ${svc.name}`}>×</button>
-                  </div>
-                </div>
+                  />
+                ))}
               </div>
-            ))}
+            )}
 
             {profile && services.length === 0 && (
               <div className="provider-setup-empty provider-setup-empty--services">

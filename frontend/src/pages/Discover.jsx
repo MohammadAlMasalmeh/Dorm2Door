@@ -137,9 +137,6 @@ function Discover() {
       <header className="discover-toolbar">
         <div className="discover-toolbar-intro">
           <h1 className="discover-toolbar-title">Discover</h1>
-          <p className="discover-toolbar-line">
-            Map and list update from the point you tap — filters on the left.
-          </p>
         </div>
       </header>
 

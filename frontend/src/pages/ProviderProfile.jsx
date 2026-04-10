@@ -49,6 +49,7 @@ export default function ProviderProfile({ session }) {
   const [reviewsError, setReviewsError] = useState('')
   const [loading, setLoading] = useState(true)
   const [selectedImage, setSelectedImage] = useState(0)
+  const [hoverGalleryIndex, setHoverGalleryIndex] = useState(null)
   const [friendStatus, setFriendStatus] = useState('none')
   const [friendActionLoading, setFriendActionLoading] = useState(false)
   const [reviewsExpanded, setReviewsExpanded] = useState(false)
@@ -61,6 +62,10 @@ export default function ProviderProfile({ session }) {
   useEffect(() => {
     setSelectedImage(0)
   }, [focusServiceId])
+
+  useEffect(() => {
+    setHoverGalleryIndex(null)
+  }, [id, focusServiceId])
 
   useEffect(() => {
     if (!id) return
@@ -191,7 +196,11 @@ export default function ProviderProfile({ session }) {
   const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
   const isOwn = session?.user?.id === id
   const galleryIndex = Math.min(selectedImage, Math.max(0, portfolioSlides.length - 1))
-  const mainSlide = portfolioSlides[galleryIndex]
+  const previewIndex =
+    hoverGalleryIndex != null && portfolioSlides[hoverGalleryIndex]
+      ? hoverGalleryIndex
+      : galleryIndex
+  const mainSlide = portfolioSlides[previewIndex]
   const mainImage = mainSlide?.url
   const favoriteTargetServiceId = mainSlide?.serviceId
 
@@ -285,13 +294,23 @@ export default function ProviderProfile({ session }) {
             </button>
           ) : null}
         </div>
-        <div className="listing-gallery-thumbs">
-          {[0, 1, 2].map((i) => (
+        <div
+          className="listing-gallery-thumbs"
+          onMouseLeave={() => setHoverGalleryIndex(null)}
+        >
+          {[0, 1, 2, 3, 4].map((i) => (
             <button
               key={i}
               type="button"
               className={`listing-gallery-thumb${galleryIndex === i ? ' active' : ''}`}
-              onClick={() => portfolioSlides[i] && setSelectedImage(i)}
+              onClick={() => {
+                if (!portfolioSlides[i]) return
+                setSelectedImage(i)
+                setHoverGalleryIndex(null)
+              }}
+              onMouseEnter={() => {
+                if (portfolioSlides[i]) setHoverGalleryIndex(i)
+              }}
               style={portfolioSlides[i] ? { backgroundImage: `url(${portfolioSlides[i].url})` } : {}}
             >
               {!portfolioSlides[i] && thumbPlaceholderSvg}

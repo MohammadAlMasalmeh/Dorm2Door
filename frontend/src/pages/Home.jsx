@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
+import ServiceListingCard from '../components/ServiceListingCard'
+import { galleryUrlsForService, priceLabelForService } from '../serviceListingUtils'
 
 function normalizeForSearch(text) {
   return (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')
@@ -32,7 +34,7 @@ function ServiceCardsScroller({ children, label = 'services' }) {
   const scrollByCards = (direction) => {
     const el = scrollerRef.current
     if (!el) return
-    const card = el.querySelector('.figma-service-card--cube')
+    const card = el.querySelector('.figma-results-card')
     const gap = 24
     const step = card ? card.getBoundingClientRect().width + gap : 256
     el.scrollBy({ left: direction * step, behavior: 'smooth' })
@@ -71,13 +73,14 @@ export default function Home({ session }) {
 
   const [providers, setProviders] = useState([])
   const [loading, setLoading] = useState(true)
+  const [activeTags, setActiveTags] = useState(new Set())
   const [sortBy, setSortBy] = useState('rating')
   const [upcomingAppointments, setUpcomingAppointments] = useState([])
   const [homeApptBusy, setHomeApptBusy] = useState(null)
   const [homeApptError, setHomeApptError] = useState('')
 
   useEffect(() => { setSearchInput(queryFromUrl) }, [queryFromUrl])
-  useEffect(() => { fetchProviders() }, [sortBy])
+  useEffect(() => { fetchProviders() }, [activeTags, sortBy])
 
   const fetchUpcomingAppointments = useCallback(async () => {
     if (!session?.user?.id) {
@@ -120,11 +123,12 @@ export default function Home({ session }) {
   async function fetchProviders() {
     setLoading(true)
     const fieldsWithCount =
-      'id, bio, tags, avg_rating, review_count, location, users (display_name, avatar_url), services (id, image_url, price, name, service_options (id, name, price))'
+      'id, bio, tags, avg_rating, review_count, location, users (display_name, avatar_url), services (id, image_url, image_urls, price, name, description, service_options (id, name, price))'
     const fieldsLegacy =
-      'id, bio, tags, avg_rating, location, users (display_name, avatar_url), services (id, image_url, price, name, service_options (id, name, price))'
+      'id, bio, tags, avg_rating, location, users (display_name, avatar_url), services (id, image_url, image_urls, price, name, description, service_options (id, name, price))'
     function providersQuery(fields) {
       let q = supabase.from('providers').select(fields)
+      if (activeTags.size > 0) q = q.overlaps('tags', [...activeTags])
       if (sortBy === 'rating') q = q.order('avg_rating', { ascending: false })
       else q = q.order('id', { ascending: false })
       return q
@@ -172,40 +176,6 @@ export default function Home({ session }) {
     else navigate('/')
   }
 
-  /** Prefer listing photo; fall back to provider avatar so cards aren’t empty greys. */
-  function cardImage(service, provider) {
-    const u = (service?.image_url || '').trim()
-    if (u) return u
-    const av = (provider?.users?.avatar_url || '').trim()
-    return av || null
-  }
-
-  function cardPrice(service) {
-    const prices = []
-    if (service?.price != null) prices.push(Number(service.price))
-    ;(service?.service_options || []).forEach((opt) => {
-      if (opt.price != null) prices.push(Number(opt.price))
-    })
-    if (prices.length === 0) return null
-    const min = Math.min(...prices)
-    const max = Math.max(...prices)
-    return max > min ? `$${min}-${max}` : `$${Number(min).toFixed(0)}`
-  }
-
-  /** Figma-style “From $70–$100” line */
-  function cardPriceFromLabel(service) {
-    const raw = cardPrice(service)
-    if (!raw) return null
-    const inner = raw.replace(/^\$/, '')
-    return inner.includes('-') ? `From $${inner}` : `From $${inner}`
-  }
-
-  function subserviceLine(service) {
-    const names = (service?.service_options || []).map((o) => (o.name || '').trim()).filter(Boolean)
-    if (names.length < 2) return null
-    return `Add-ons: ${names.slice(0, 6).join(', ')}`
-  }
-
   function handleSeeMore(sectionKey) {
     const params = new URLSearchParams({ section: sectionKey })
     if (queryFromUrl) params.set('q', queryFromUrl)
@@ -213,6 +183,7 @@ export default function Home({ session }) {
       state: {
         section: sectionKey,
         q: queryFromUrl,
+        activeTags: [...activeTags],
       },
     })
   }
@@ -220,86 +191,24 @@ export default function Home({ session }) {
   function renderServiceCard(card) {
     const p = card.provider
     const s = card.service
-    const img = cardImage(s, p)
-    const tags = (p.tags || []).slice(0, 2)
-    const priceFrom = cardPriceFromLabel(s)
-    const subsLine = subserviceLine(s)
     const serviceName = s?.name || (p.users?.display_name || 'Provider')
     const displayName = p.users?.display_name || 'Provider'
-    const avatarUrl = p.users?.avatar_url
-    const initials = (displayName || 'P').slice(0, 2).toUpperCase()
-    const ratingNum =
-      (p.review_count ?? 0) > 0 && p.avg_rating != null ? Number(p.avg_rating).toFixed(2) : null
-
-    const thumbPositions = ['50% 45%', '15% 50%', '50% 50%', '85% 50%', '50% 75%']
+    const rating =
+      (p.review_count ?? 0) > 0 && p.avg_rating != null ? Number(p.avg_rating) : 0
 
     return (
-      <Link
+      <ServiceListingCard
         key={card.key}
-        to={`/provider/${p.id}?service=${encodeURIComponent(s.id)}`}
-        className="figma-service-card figma-service-card--cube"
-      >
-        <div className="figma-service-card-visual" aria-hidden>
-          <div
-            className={`figma-service-card-main-img${!img ? ' figma-service-card-main-img--placeholder' : ''}`}
-            style={img ? { backgroundImage: `url(${img})` } : undefined}
-          >
-            {!img && (
-              <span className="figma-service-card-main-fallback" aria-hidden>
-                {(serviceName || displayName || 'P').slice(0, 1).toUpperCase()}
-              </span>
-            )}
-          </div>
-          <div className="figma-service-card-thumbs">
-            {thumbPositions.map((pos, i) => (
-              <div
-                key={i}
-                className={`figma-service-card-thumb${img ? ' figma-service-card-thumb--img' : ''}`}
-                style={
-                  img
-                    ? { backgroundImage: `url(${img})`, backgroundPosition: pos }
-                    : undefined
-                }
-              />
-            ))}
-          </div>
-        </div>
-        <div className="figma-service-card-body figma-service-card-body--light">
-          {tags.length > 0 && (
-            <div className="figma-service-card-tags figma-service-card-tags--compact">
-              {tags.map((t) => (
-                <span key={t} className="figma-service-card-tag figma-service-card-tag--outline">
-                  {t}
-                </span>
-              ))}
-            </div>
-          )}
-          <h3 className="figma-service-card-name figma-service-card-name--dark">{serviceName}</h3>
-          <div className="figma-service-card-price-row">
-            <span className="figma-service-card-from-price">{priceFrom || 'From $10'}</span>
-            {ratingNum != null && (
-              <span className="figma-service-card-rating-inline">
-                <span className="figma-service-card-star" aria-hidden>★</span>
-                <span>{ratingNum}</span>
-              </span>
-            )}
-          </div>
-          {subsLine && <p className="figma-service-card-subs">{subsLine}</p>}
-          <div className="figma-service-card-provider figma-service-card-provider--dark">
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="" className="figma-service-card-avatar" />
-            ) : (
-              <span className="figma-service-card-avatar-initials figma-service-card-avatar-initials--dark">
-                {initials}
-              </span>
-            )}
-            <span>{displayName}</span>
-          </div>
-          <div className="figma-service-card-meta figma-service-card-meta--dark">
-            <span className="figma-service-card-distance">{p.location || '.5 mi away'}</span>
-          </div>
-        </div>
-      </Link>
+        resetKey={card.key}
+        className="figma-results-card--compact-scroll"
+        portfolioUrls={galleryUrlsForService(s)}
+        serviceName={serviceName}
+        priceLabel={priceLabelForService(s)}
+        rating={rating}
+        providerName={displayName}
+        providerAvatarUrl={p.users?.avatar_url || null}
+        linkTo={`/provider/${p.id}?service=${encodeURIComponent(s.id)}`}
+      />
     )
   }
 

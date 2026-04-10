@@ -191,6 +191,10 @@ export default function CreateListing({ session, userProfile, onUpdate }) {
       setError('Add at least one sub-service with name and price.')
       return
     }
+    if (svcPreviews.length === 0) {
+      setError('Add at least one photo before you can list this service.')
+      return
+    }
     const ok = await ensureProviderRow()
     if (!ok) {
       setError('Could not set up provider account.')
@@ -202,6 +206,11 @@ export default function CreateListing({ session, userProfile, onUpdate }) {
       imageUrls = await uploadAllImages()
     } catch (err) {
       setError('Image upload failed: ' + (err.message || 'Try again.'))
+      setUploading(false)
+      return
+    }
+    if (imageUrls.length === 0) {
+      setError('Add at least one photo before you can list this service.')
       setUploading(false)
       return
     }
@@ -394,7 +403,7 @@ export default function CreateListing({ session, userProfile, onUpdate }) {
 
             <div className="listing-create-col listing-create-col-right">
               <label className="listing-create-label">Add photos</label>
-              <p className="listing-create-photo-hint">Add up to {MAX_IMAGES} photos/videos of your service</p>
+              <p className="listing-create-photo-hint">At least one photo is required to list. Up to {MAX_IMAGES} photos.</p>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -432,7 +441,12 @@ export default function CreateListing({ session, userProfile, onUpdate }) {
                 <button type="button" className="listing-create-btn-draft" onClick={handleDrafts}>
                   Save to Drafts
                 </button>
-                <button type="submit" className="listing-create-btn-publish" disabled={uploading}>
+                <button
+                  type="submit"
+                  className="listing-create-btn-publish"
+                  disabled={uploading || svcPreviews.length === 0}
+                  title={svcPreviews.length === 0 ? 'Add at least one photo to publish' : undefined}
+                >
                   {uploading ? 'Publishing…' : 'List!'}
                 </button>
               </div>

@@ -919,49 +919,6 @@
   color: #3e4e47;
 }
 
-.services-availability-subtitle {
-  margin-top: -8px;
-  margin-bottom: 18px;
-  color: rgba(33, 33, 33, 0.65);
-  font-size: 1rem;
-}
-
-.services-availability-btn {
-  border: 1px solid transparent;
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-size: 0.95rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-a.services-availability-btn.services-availability-btn-inline {
-  display: inline-block;
-  text-decoration: none;
-  margin-top: 8px;
-}
-
-.services-availability-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.services-availability-btn-primary {
-  background: #3e4e47;
-  color: #f4f7f4;
-}
-
-.services-availability-btn-primary:hover:not(:disabled) {
-  background: #2f3d37;
-}
-
-.services-availability-card {
-  background: #f4f7f4;
-  border: 1px solid rgba(62, 78, 71, 0.2);
-  border-radius: 16px;
-  padding: 20px;
-}
-
 @media (max-width: 900px) {
   .services-page {
     grid-template-columns: 1fr;
