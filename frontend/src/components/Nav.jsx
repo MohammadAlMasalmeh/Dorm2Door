@@ -98,6 +98,7 @@ function timeAgo(ts) {
 export default function Nav({ session, userProfile }) {
   const location = useLocation()
   const isProvider = userProfile?.role === 'provider' || session?.user?.user_metadata?.role === 'provider'
+  const servicesDropdownTo = isProvider ? '/services' : '/discover'
   const avatarUrl = userProfile?.avatar_url
   const initials = (userProfile?.display_name || session?.user?.email || '?')
     .split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -331,19 +332,17 @@ export default function Nav({ session, userProfile }) {
                 </span>
                 Discover
               </NavLink>
-              {!isProvider && (
-                <NavLink
-                  to="/appointments"
-                  role="menuitem"
-                  className={({ isActive }) => `nav-profile-dropdown-item${isActive ? ' active' : ''}`}
-                  onClick={() => setShowProfileDropdown(false)}
-                >
-                  <span className="nav-profile-dropdown-icon" aria-hidden>
-                    <CalendarIcon />
-                  </span>
-                  Bookings
-                </NavLink>
-              )}
+              <NavLink
+                to="/appointments"
+                role="menuitem"
+                className={({ isActive }) => `nav-profile-dropdown-item${isActive ? ' active' : ''}`}
+                onClick={() => setShowProfileDropdown(false)}
+              >
+                <span className="nav-profile-dropdown-icon" aria-hidden>
+                  <CalendarIcon />
+                </span>
+                Bookings
+              </NavLink>
               <NavLink
                 to="/messages"
                 role="menuitem"
@@ -355,19 +354,17 @@ export default function Nav({ session, userProfile }) {
                 </span>
                 Messages
               </NavLink>
-              {isProvider && (
-                <NavLink
-                  to="/services"
-                  role="menuitem"
-                  className={({ isActive }) => `nav-profile-dropdown-item${isActive ? ' active' : ''}`}
-                  onClick={() => setShowProfileDropdown(false)}
-                >
-                  <span className="nav-profile-dropdown-icon nav-profile-dropdown-icon--img" aria-hidden>
-                    <ServicesIcon />
-                  </span>
-                  Services
-                </NavLink>
-              )}
+              <NavLink
+                to={servicesDropdownTo}
+                role="menuitem"
+                className={({ isActive }) => `nav-profile-dropdown-item${isActive ? ' active' : ''}`}
+                onClick={() => setShowProfileDropdown(false)}
+              >
+                <span className="nav-profile-dropdown-icon nav-profile-dropdown-icon--img" aria-hidden>
+                  <ServicesIcon />
+                </span>
+                Services
+              </NavLink>
             </div>
           )}
         </div>
