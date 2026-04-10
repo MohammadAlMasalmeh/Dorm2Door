@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import ProviderServicesShell from '../components/ProviderServicesShell'
 import {
@@ -32,6 +32,164 @@ function formatWeekRangeLabel() {
   return `${start.toLocaleDateString('en-GB', o)} - ${end.toLocaleDateString('en-GB', o)}`
 }
 
+function monthKeyFromDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function formatMonthLabel(key) {
+  const [y, m] = key.split('-').map(Number)
+  if (!y || !m) return key
+  return new Date(y, m - 1, 1).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
+}
+
+/** Inclusive month range from start through endMonth (same year/month as `now`). */
+function eachMonthKeyBetween(start, endCap) {
+  const keys = []
+  const c = new Date(start.getFullYear(), start.getMonth(), 1)
+  const end = new Date(endCap.getFullYear(), endCap.getMonth(), 1)
+  while (c <= end) {
+    keys.push(monthKeyFromDate(c))
+    c.setMonth(c.getMonth() + 1)
+  }
+  return keys
+}
+
+function monthKeysForRange(range, now, earliestDate) {
+  if (range === 'ytd') {
+    return eachMonthKeyBetween(new Date(now.getFullYear(), 0, 1), now)
+  }
+  if (range === '12m') {
+    return eachMonthKeyBetween(new Date(now.getFullYear(), now.getMonth() - 11, 1), now)
+  }
+  if (earliestDate) {
+    return eachMonthKeyBetween(new Date(earliestDate.getFullYear(), earliestDate.getMonth(), 1), now)
+  }
+  return eachMonthKeyBetween(now, now)
+}
+
+function StatTrendModal({ metric, range, onRangeChange, onClose, points, formatY: formatYAxis }) {
+  const title =
+    metric === 'revenue'
+      ? 'Revenue'
+      : metric === 'services'
+        ? 'Services completed'
+        : 'Average review (by month)'
+  const maxVal = useMemo(() => {
+    if (metric === 'rating') return 5
+    if (!points.length) return 1
+    return Math.max(...points.map((p) => p.value), 0.01)
+  }, [points, metric])
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const W = 560
+  const H = 220
+  const padL = 44
+  const padR = 16
+  const padT = 12
+  const padB = 36
+  const innerW = W - padL - padR
+  const innerH = H - padT - padB
+  const n = Math.max(points.length, 1)
+  const barGap = 4
+  const barW = Math.max(4, (innerW - barGap * (n - 1)) / n)
+
+  return (
+    <div
+      className="services-stat-graph-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="services-stat-graph-title"
+      onClick={onClose}
+    >
+      <div className="services-stat-graph-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="services-stat-graph-modal-head">
+          <h2 id="services-stat-graph-title" className="services-stat-graph-modal-title">
+            {title}
+          </h2>
+          <button type="button" className="services-stat-graph-close" onClick={onClose} aria-label="Close graph">
+            ×
+          </button>
+        </div>
+        <p className="services-stat-graph-hint">
+          {metric === 'rating'
+            ? 'Average star rating for reviews submitted in each month.'
+            : 'Totals by calendar month from completed appointments (using scheduled date).'}
+        </p>
+        <div className="services-stat-graph-ranges" role="tablist" aria-label="Time range">
+          {[
+            { id: 'ytd', label: 'Year to date' },
+            { id: '12m', label: 'Last 12 months' },
+            { id: 'all', label: 'All time' },
+          ].map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={range === id}
+              className={`services-stat-graph-range-btn${range === id ? ' is-active' : ''}`}
+              onClick={() => onRangeChange(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {points.length === 0 ? (
+          <p className="services-stat-graph-empty">No data in this range yet.</p>
+        ) : (
+          <svg
+            className="services-stat-graph-svg"
+            viewBox={`0 0 ${W} ${H}`}
+            preserveAspectRatio="xMidYMid meet"
+            aria-hidden
+          >
+            {points.map((p, i) => {
+              const h = maxVal > 0 ? (p.value / maxVal) * innerH : 0
+              const x = padL + i * (barW + barGap)
+              const y = padT + innerH - h
+              return (
+                <g key={p.key}>
+                  <rect
+                    x={x}
+                    y={y}
+                    width={barW}
+                    height={Math.max(h, 0)}
+                    rx={3}
+                    className="services-stat-graph-bar"
+                  />
+                  <title>{`${formatMonthLabel(p.key)}: ${formatYAxis(p.value)}`}</title>
+                </g>
+              )
+            })}
+            <line
+              x1={padL}
+              y1={padT + innerH}
+              x2={padL + innerW}
+              y2={padT + innerH}
+              className="services-stat-graph-axis"
+            />
+          </svg>
+        )}
+        {points.length > 0 && (
+          <div className="services-stat-graph-xlabels">
+            {points.map((p) => (
+              <span key={p.key} className="services-stat-graph-xlabel">
+                {formatMonthLabel(p.key)}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function Services({ session, userProfile }) {
   const isProvider = userProfile?.role === 'provider' || session?.user?.user_metadata?.role === 'provider'
   const [providerIncoming, setProviderIncoming] = useState([])
@@ -49,25 +207,32 @@ export default function Services({ session, userProfile }) {
   const [myLocation, setMyLocation] = useState('')
   const [ratedConsumerIds, setRatedConsumerIds] = useState(() => new Set())
   const [apptTab, setApptTab] = useState('upcoming')
+  const [trendMetric, setTrendMetric] = useState(null)
+  const [trendRange, setTrendRange] = useState('ytd')
+  const [completedTimeline, setCompletedTimeline] = useState([])
+  const [reviewTimeline, setReviewTimeline] = useState([])
   const location = useLocation()
-  const navigate = useNavigate()
-  const isStatsView = location.pathname === '/services/stats'
-
-  useEffect(() => {
-    if (location.pathname === '/services' && location.hash === '#stats') {
-      navigate('/services/stats', { replace: true })
-    }
-  }, [location.pathname, location.hash, navigate])
+  const statsSectionRef = useRef(null)
 
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [location.pathname])
+
+  useEffect(() => {
+    if (location.hash !== '#stats' || !statsSectionRef.current) return
+    const t = window.setTimeout(() => {
+      statsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 100)
+    return () => window.clearTimeout(t)
+  }, [location.hash, loading])
 
   const loadDashboard = useCallback(async () => {
     if (!session?.user?.id || !isProvider) {
       setLoading(false)
       setRatedConsumerIds(new Set())
       setTotalStats({ revenue: 0, servicesProvided: 0 })
+      setCompletedTimeline([])
+      setReviewTimeline([])
       return
     }
     const uid = session.user.id
@@ -104,10 +269,10 @@ export default function Services({ session, userProfile }) {
       supabase.from('providers').select('avg_rating, review_count, location').eq('id', uid).maybeSingle(),
       supabase
         .from('appointments')
-        .select('id, service_id, service_options (price), services (price)')
+        .select('id, service_id, scheduled_at, service_options (price), services (price)')
         .eq('provider_id', uid)
         .eq('status', 'completed'),
-      supabase.from('reviews').select('rating, appointment_id').eq('provider_id', uid),
+      supabase.from('reviews').select('rating, appointment_id, created_at').eq('provider_id', uid),
       supabase.from('customer_reviews').select('consumer_id').eq('provider_id', uid),
     ])
 
@@ -158,7 +323,22 @@ export default function Services({ session, userProfile }) {
     setServiceMetrics(metrics)
     setTotalStats({ revenue: totalRevenueAll, servicesProvided: completedAll.length })
 
+    setCompletedTimeline(
+      completedAll.map((a) => {
+        const p = a.service_options?.price != null ? a.service_options.price : a.services?.price
+        return {
+          scheduled_at: a.scheduled_at,
+          price: p != null ? Number(p) : null,
+        }
+      }),
+    )
+
     const revRows = reviewsListRes.data || []
+    setReviewTimeline(
+      (reviewsListRes.data || [])
+        .filter((r) => r.created_at != null && r.rating != null)
+        .map((r) => ({ created_at: r.created_at, rating: Number(r.rating) })),
+    )
     const apptIds = [...new Set(revRows.map((r) => r.appointment_id).filter(Boolean))]
     const apptToService = {}
     if (apptIds.length) {
@@ -235,61 +415,136 @@ export default function Services({ session, userProfile }) {
     [dashboardAppointments],
   )
 
-  const statsSections = (
-    <>
-      <section id="stats" className="services-section services-section-stats">
-        <h1 className="services-heading">Weekly Stats</h1>
-        <div className="services-stats-row">
-          <div className="services-stat-card services-stat-card-bordered">
-            <p className="services-stat-label-dark">Revenue</p>
-            <p className="services-stat-value-dark">${stats.revenue.toFixed(2)}</p>
-            <p className="services-stat-date-dark">{weekLabel}</p>
-          </div>
-          <div className="services-stat-card services-stat-card-bordered">
-            <p className="services-stat-label-dark">Services Provided</p>
-            <p className="services-stat-value-dark">{stats.servicesProvided}</p>
-            <p className="services-stat-date-dark">{weekLabel}</p>
-          </div>
-          <div className="services-stat-card services-stat-card-bordered">
-            <p className="services-stat-label-dark">Average Review</p>
-            <p className="services-stat-value-dark">{avgReview != null ? avgReview.toFixed(1) : '—'}</p>
-            <p className="services-stat-date-dark">{weekLabel}</p>
-          </div>
-        </div>
-      </section>
-      <section className="services-section services-section-stats services-section-total-stats" aria-labelledby="total-stats-heading">
-        <h2 id="total-stats-heading" className="services-heading">
-          Total Stats
-        </h2>
-        <div className="services-stats-row">
-          <div className="services-stat-card services-stat-card-bordered">
-            <p className="services-stat-label-dark">Revenue</p>
-            <p className="services-stat-value-dark">${totalStats.revenue.toFixed(2)}</p>
-            <p className="services-stat-date-dark">All time</p>
-          </div>
-          <div className="services-stat-card services-stat-card-bordered">
-            <p className="services-stat-label-dark">Services Provided</p>
-            <p className="services-stat-value-dark">{totalStats.servicesProvided}</p>
-            <p className="services-stat-date-dark">All time</p>
-          </div>
-          <div className="services-stat-card services-stat-card-bordered">
-            <p className="services-stat-label-dark">Average Review</p>
-            <p className="services-stat-value-dark">{avgReview != null ? avgReview.toFixed(1) : '—'}</p>
-            <p className="services-stat-date-dark">All time</p>
-          </div>
-        </div>
-      </section>
-    </>
+  const trendPoints = useMemo(() => {
+    if (!trendMetric) return []
+    const now = new Date()
+    let earliest = null
+    if (trendMetric === 'rating') {
+      const times = reviewTimeline.map((r) => new Date(r.created_at))
+      earliest = times.length ? new Date(Math.min(...times)) : null
+    } else {
+      const times = completedTimeline.map((r) => new Date(r.scheduled_at))
+      earliest = times.length ? new Date(Math.min(...times)) : null
+    }
+    const keys = monthKeysForRange(trendRange, now, earliest)
+    const counts = {}
+    keys.forEach((k) => {
+      counts[k] = { revenue: 0, count: 0, rSum: 0, rN: 0 }
+    })
+    if (trendMetric === 'revenue' || trendMetric === 'services') {
+      for (const row of completedTimeline) {
+        if (!row.scheduled_at) continue
+        const k = monthKeyFromDate(new Date(row.scheduled_at))
+        if (!counts[k]) continue
+        counts[k].count += 1
+        if (row.price != null) counts[k].revenue += row.price
+      }
+    }
+    if (trendMetric === 'rating') {
+      for (const row of reviewTimeline) {
+        const k = monthKeyFromDate(new Date(row.created_at))
+        if (!counts[k]) continue
+        counts[k].rSum += row.rating
+        counts[k].rN += 1
+      }
+    }
+    return keys.map((key) => {
+      const s = counts[key]
+      if (trendMetric === 'revenue') return { key, value: s.revenue }
+      if (trendMetric === 'services') return { key, value: s.count }
+      return { key, value: s.rN ? s.rSum / s.rN : 0 }
+    })
+  }, [trendMetric, trendRange, completedTimeline, reviewTimeline])
+
+  const formatTrendY = useCallback(
+    (v) => {
+      if (trendMetric === 'revenue') return `$${v.toFixed(2)}`
+      if (trendMetric === 'services') return String(Math.round(v))
+      return v.toFixed(1)
+    },
+    [trendMetric],
   )
+
+  function openTrend(metric) {
+    setTrendRange('ytd')
+    setTrendMetric(metric)
+  }
 
   return (
     <ProviderServicesShell>
-      {isStatsView ? (
-        statsSections
-      ) : (
         <>
+        <section
+          ref={statsSectionRef}
+          id="stats"
+          className="services-section services-section-overview-stats"
+          aria-label="Performance overview"
+        >
+          <div className="services-overview-head">
+            <h1 className="services-heading services-heading--overview">Overview</h1>
+            <p className="services-overview-sub">
+              Past 7 days vs all time. Click a metric to open a monthly chart (year to date, last 12 months, or all time).
+            </p>
+          </div>
+          <div className="services-overview-metrics">
+            <button
+              type="button"
+              className="services-overview-stat-card services-stat-card-bordered"
+              onClick={() => openTrend('revenue')}
+            >
+              <span className="services-overview-stat-label">Revenue</span>
+              <div className="services-overview-stat-rows">
+                <div className="services-overview-stat-row">
+                  <span className="services-overview-stat-period">{weekLabel}</span>
+                  <span className="services-overview-stat-figure">${stats.revenue.toFixed(2)}</span>
+                </div>
+                <div className="services-overview-stat-row">
+                  <span className="services-overview-stat-period">All time</span>
+                  <span className="services-overview-stat-figure">${totalStats.revenue.toFixed(2)}</span>
+                </div>
+              </div>
+              <span className="services-overview-stat-cta">View trend</span>
+            </button>
+            <button
+              type="button"
+              className="services-overview-stat-card services-stat-card-bordered"
+              onClick={() => openTrend('services')}
+            >
+              <span className="services-overview-stat-label">Services provided</span>
+              <div className="services-overview-stat-rows">
+                <div className="services-overview-stat-row">
+                  <span className="services-overview-stat-period">{weekLabel}</span>
+                  <span className="services-overview-stat-figure">{stats.servicesProvided}</span>
+                </div>
+                <div className="services-overview-stat-row">
+                  <span className="services-overview-stat-period">All time</span>
+                  <span className="services-overview-stat-figure">{totalStats.servicesProvided}</span>
+                </div>
+              </div>
+              <span className="services-overview-stat-cta">View trend</span>
+            </button>
+            <button
+              type="button"
+              className="services-overview-stat-card services-stat-card-bordered"
+              onClick={() => openTrend('rating')}
+            >
+              <span className="services-overview-stat-label">Average review</span>
+              <div className="services-overview-stat-rows">
+                <div className="services-overview-stat-row">
+                  <span className="services-overview-stat-period">{weekLabel}</span>
+                  <span className="services-overview-stat-figure">{avgReview != null ? avgReview.toFixed(1) : '—'}</span>
+                </div>
+                <div className="services-overview-stat-row">
+                  <span className="services-overview-stat-period">All time</span>
+                  <span className="services-overview-stat-figure">{avgReview != null ? avgReview.toFixed(1) : '—'}</span>
+                </div>
+              </div>
+              <span className="services-overview-stat-cta">View trend</span>
+            </button>
+          </div>
+        </section>
+
         <section className="services-section services-section-appointments">
-          <h1 className="services-heading">Appointments</h1>
+          <h2 className="services-heading">Appointments</h2>
           {actionError ? <p className="services-action-error" role="alert">{actionError}</p> : null}
           {loading ? (
             <p className="services-panel-empty-dark">Loading…</p>
@@ -457,7 +712,16 @@ export default function Services({ session, userProfile }) {
           </div>
         </section>
         </>
-      )}
+      {trendMetric ? (
+        <StatTrendModal
+          metric={trendMetric}
+          range={trendRange}
+          onRangeChange={setTrendRange}
+          onClose={() => setTrendMetric(null)}
+          points={trendPoints}
+          formatY={formatTrendY}
+        />
+      ) : null}
 
       {customerReviewAppt && (
         <CustomerReviewModal

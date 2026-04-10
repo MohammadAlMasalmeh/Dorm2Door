@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import React, { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { supabase } from '../supabaseClient'
@@ -11,6 +11,13 @@ const DEFAULT_ZOOM = 12
 function Stars({ value }) {
   const n = Math.round(value || 0)
   return <span className="stars">{'★'.repeat(n)}{'☆'.repeat(5 - n)}</span>
+}
+
+function initialsFromName(name) {
+  const parts = (name || 'Provider').trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return 'P'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
 }
 
 function CenterController({ center }) {
@@ -32,9 +39,6 @@ function MapClickHandler({ onMapClick }) {
 }
 
 function Discover() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const q = (searchParams.get('q') || '').trim().toLowerCase()
-
   const [center, setCenter] = useState(DEFAULT_CENTER)
   const [userLocation, setUserLocation] = useState(null)
   const [results, setResults] = useState([])
@@ -69,15 +73,6 @@ function Discover() {
   useEffect(() => {
     fetchNearby()
   }, [fetchNearby])
-
-  const filteredResults = useMemo(() => {
-    if (!q) return results
-    return results.filter((r) => {
-      const name = (r.display_name || '').toLowerCase()
-      const svcLine = (r.service_names || []).join(' ').toLowerCase()
-      return name.includes(q) || svcLine.includes(q)
-    })
-  }, [results, q])
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return
@@ -132,126 +127,161 @@ function Discover() {
 
   const providerIcon = L.divIcon({
     className: 'discover-marker discover-marker-provider',
-    html: '<span class="discover-marker-pin">📍</span>',
-    iconSize: [32, 32],
-    iconAnchor: [16, 32],
+    html: '<span class="discover-marker-provider-dot" aria-hidden="true"></span>',
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
   })
 
   return (
     <div className="discover-page">
-      <div className="discover-header">
-        <h1 className="discover-title">Discover services near you</h1>
-        <p className="discover-subtitle">Click the map to set your area, or use your location. Filter by rating, price, and distance.</p>
-      </div>
+      <header className="discover-toolbar">
+        <div className="discover-toolbar-intro">
+          <h1 className="discover-toolbar-title">Discover</h1>
+          <p className="discover-toolbar-line">
+            Map and list update from the point you tap — filters on the left.
+          </p>
+        </div>
+      </header>
 
       <div className="discover-layout">
-        <div className="discover-filters">
+        <aside className="discover-filters" aria-label="Filters">
+          <h2 className="discover-filters-title">Filters</h2>
           <div className="discover-filter-group">
-            <label>Min. rating (stars)</label>
-            <select value={minRating} onChange={e => setMinRating(e.target.value)} className="discover-input">
+            <label htmlFor="discover-min-rating">Min. rating</label>
+            <select id="discover-min-rating" value={minRating} onChange={(e) => setMinRating(e.target.value)} className="discover-input">
               <option value="">Any</option>
-              <option value="1">1+</option>
-              <option value="2">2+</option>
-              <option value="3">3+</option>
-              <option value="4">4+</option>
-              <option value="4.5">4.5+</option>
+              <option value="1">1+ stars</option>
+              <option value="2">2+ stars</option>
+              <option value="3">3+ stars</option>
+              <option value="4">4+ stars</option>
+              <option value="4.5">4.5+ stars</option>
             </select>
           </div>
           <div className="discover-filter-group">
-            <label>Price range ($)</label>
-            <div className="discover-price-row">
-              <input type="number" min="0" step="0.01" placeholder="Min" value={minPrice} onChange={e => setMinPrice(e.target.value)} className="discover-input" />
-              <span>–</span>
-              <input type="number" min="0" step="0.01" placeholder="Max" value={maxPrice} onChange={e => setMaxPrice(e.target.value)} className="discover-input" />
+            <span className="discover-filter-label" id="discover-price-label">Price ($)</span>
+            <div className="discover-price-row" aria-labelledby="discover-price-label">
+              <input type="number" min="0" step="0.01" placeholder="Min" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} className="discover-input" aria-label="Minimum price" />
+              <span className="discover-price-sep">–</span>
+              <input type="number" min="0" step="0.01" placeholder="Max" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} className="discover-input" aria-label="Maximum price" />
             </div>
           </div>
           <div className="discover-filter-group">
-            <label>Max distance (km)</label>
-            <input type="number" min="1" max="200" step="1" value={maxDistanceKm} onChange={e => setMaxDistanceKm(e.target.value)} className="discover-input" />
+            <label htmlFor="discover-max-km">Max distance</label>
+            <div className="discover-distance-row">
+              <input id="discover-max-km" type="number" min="1" max="200" step="1" value={maxDistanceKm} onChange={(e) => setMaxDistanceKm(e.target.value)} className="discover-input" />
+              <span className="discover-distance-unit">km</span>
+            </div>
           </div>
           <button type="button" className="discover-btn discover-btn-primary" onClick={goToMyLocation}>
-            Use my location
+            My location
           </button>
           {locationError && (
-            <p className="discover-location-hint">Location unavailable — click the map to choose an area.</p>
+            <p className="discover-location-hint">Location unavailable — tap the map to choose an area.</p>
           )}
-        </div>
+        </aside>
 
-        <div className="discover-map-wrap">
-          <MapContainer
-            center={center}
-            zoom={DEFAULT_ZOOM}
-            className="discover-map"
-            scrollWheelZoom
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-              url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
-            />
-            <CenterController center={center} />
-            <MapClickHandler onMapClick={(e) => setCenter([e.latlng.lat, e.latlng.lng])} />
-            {userLocation && <Marker position={userLocation} icon={userIcon}><Popup>You are here</Popup></Marker>}
-            {filteredResults.map((r) => {
-              const position = [Number(r.latitude), Number(r.longitude)]
-              return (
-                <Marker
-                  key={r.provider_id}
-                  position={position}
-                  icon={providerIcon}
-                  eventHandlers={{ click: () => setSelectedId(r.provider_id) }}
-                >
-                  <Popup>
-                    <div className="discover-popup">
-                      <strong>{r.display_name || 'Provider'}</strong>
-                      <div><Stars value={r.avg_rating} /> {r.distance_km} km away</div>
-                      {r.min_price != null && <div>From ${Number(r.min_price).toFixed(2)}</div>}
-                      <Link to={`/provider/${r.provider_id}`} className="discover-popup-link">View listing</Link>
-                    </div>
-                  </Popup>
+        <div className="discover-map-panel">
+          <div className="discover-map-wrap">
+            <MapContainer
+              center={center}
+              zoom={DEFAULT_ZOOM}
+              className="discover-map"
+              scrollWheelZoom
+            >
+              <TileLayer
+                attribution='&copy; <a href="https://carto.com/">CARTO</a>'
+                url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+              />
+              <CenterController center={center} />
+              <MapClickHandler onMapClick={(e) => setCenter([e.latlng.lat, e.latlng.lng])} />
+              {userLocation && (
+                <Marker position={userLocation} icon={userIcon}>
+                  <Popup>You are here</Popup>
                 </Marker>
-              )
-            })}
-          </MapContainer>
+              )}
+              {results.map((r) => {
+                const position = [Number(r.latitude), Number(r.longitude)]
+                return (
+                  <Marker
+                    key={r.provider_id}
+                    position={position}
+                    icon={providerIcon}
+                    eventHandlers={{ click: () => setSelectedId(r.provider_id) }}
+                  >
+                    <Popup>
+                      <div className="discover-popup">
+                        <strong>{r.display_name || 'Provider'}</strong>
+                        <div className="discover-popup-meta"><Stars value={r.avg_rating} /> · {r.distance_km} km</div>
+                        {r.min_price != null && <div className="discover-popup-price">From ${Number(r.min_price).toFixed(2)}</div>}
+                        <Link to={`/provider/${r.provider_id}`} className="discover-popup-link">View listing</Link>
+                      </div>
+                    </Popup>
+                  </Marker>
+                )
+              })}
+            </MapContainer>
+          </div>
+          <p className="discover-map-hint">Click the map to set the search center.</p>
         </div>
 
-        <div className="discover-list">
-          <h2 className="discover-list-title">
-            Services nearby ({filteredResults.length}
-            {q && results.length !== filteredResults.length ? ` of ${results.length}` : ''})
-          </h2>
-          {q && (
-            <p className="discover-search-hint">
-              Filtering by &ldquo;{searchParams.get('q')}&rdquo;.{' '}
-              <button
-                type="button"
-                className="discover-clear-q"
-                onClick={() => setSearchParams({})}
-              >
-                Clear
-              </button>
-            </p>
+        <section className="discover-list-panel" aria-label="Nearby listings">
+          <div className="discover-list-head">
+            <h2 className="discover-list-title">
+              Nearby
+              <span className="discover-list-count">{results.length}</span>
+            </h2>
+          </div>
+          {loading && (
+            <div className="discover-loading">
+              <span className="discover-loading-dot" />
+              Loading listings…
+            </div>
           )}
-          {loading && <p className="discover-loading">Loading…</p>}
           {!loading && results.length === 0 && (
             <p className="discover-empty">No providers in this area. Try a larger distance or move the map.</p>
           )}
-          {!loading && results.length > 0 && filteredResults.length === 0 && (
-            <p className="discover-empty">No listings match your search. Try different keywords or clear the filter.</p>
-          )}
-          {!loading && filteredResults.map((r) => (
-            <Link
-              key={r.provider_id}
-              to={`/provider/${r.provider_id}`}
-              className={`discover-card ${selectedId === r.provider_id ? 'selected' : ''}`}
-            >
-              <div className="discover-card-main">
-                <span className="discover-card-name">{r.display_name || 'Provider'}</span>
-                <span className="discover-card-meta"><Stars value={r.avg_rating} /> · {r.distance_km} km</span>
-              </div>
-              {r.min_price != null && <span className="discover-card-price">From ${Number(r.min_price).toFixed(2)}</span>}
-            </Link>
-          ))}
-        </div>
+          <div className="discover-list">
+            {!loading && results.map((r) => {
+              const names = (r.service_names || []).filter(Boolean).slice(0, 2).join(' · ')
+              return (
+                <Link
+                  key={r.provider_id}
+                  to={`/provider/${r.provider_id}`}
+                  className={`discover-card ${selectedId === r.provider_id ? 'selected' : ''}`}
+                >
+                  <span className="discover-card-avatar">
+                    {r.avatar_url ? (
+                      <img src={r.avatar_url} alt="" className="discover-card-avatar-img" />
+                    ) : (
+                      <span className="discover-card-initials">{initialsFromName(r.display_name)}</span>
+                    )}
+                  </span>
+                  <div className="discover-card-body">
+                    <span className="discover-card-name">{r.display_name || 'Provider'}</span>
+                    <span className="discover-card-meta">
+                      <Stars value={r.avg_rating} />
+                      <span className="discover-card-dot">·</span>
+                      {r.distance_km} km
+                      {r.location_text ? (
+                        <>
+                          <span className="discover-card-dot">·</span>
+                          <span className="discover-card-loc">{r.location_text}</span>
+                        </>
+                      ) : null}
+                    </span>
+                    {names ? <p className="discover-card-services">{names}</p> : null}
+                  </div>
+                  <div className="discover-card-aside">
+                    {r.min_price != null && (
+                      <span className="discover-card-price">From ${Number(r.min_price).toFixed(0)}</span>
+                    )}
+                    <span className="discover-card-chevron" aria-hidden>→</span>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </section>
       </div>
     </div>
   )

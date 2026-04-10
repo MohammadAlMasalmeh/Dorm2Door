@@ -249,6 +249,233 @@
   line-height: 1.3;
 }
 
+/* Overview: combined weekly + all-time stats (click opens trend graph) */
+.services-section-overview-stats {
+  margin-bottom: 40px;
+}
+
+.services-heading--overview {
+  margin-bottom: 8px;
+}
+
+.services-overview-sub {
+  font-size: 17px;
+  font-weight: 500;
+  color: #212121;
+  opacity: 0.72;
+  margin: 0 0 20px;
+  max-width: 720px;
+  line-height: 1.45;
+}
+
+.services-overview-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.services-overview-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.services-overview-stat-card:hover {
+  background: rgba(62, 78, 71, 0.06);
+}
+
+.services-overview-stat-card:focus-visible {
+  outline: 3px solid #3e4e47;
+  outline-offset: 3px;
+}
+
+.services-overview-stat-label {
+  font-size: 22px;
+  font-weight: 600;
+  color: #3e4e47;
+  letter-spacing: 0.08px;
+}
+
+.services-overview-stat-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.services-overview-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  width: 100%;
+}
+
+.services-overview-stat-period {
+  font-size: 15px;
+  font-weight: 500;
+  color: #3e4e47;
+  opacity: 0.55;
+}
+
+.services-overview-stat-figure {
+  font-size: 22px;
+  font-weight: 600;
+  color: #3e4e47;
+}
+
+.services-overview-stat-cta {
+  font-size: 15px;
+  font-weight: 600;
+  color: #3e4e47;
+  opacity: 0.85;
+  margin-top: auto;
+}
+
+/* Stat trend graph modal */
+.services-stat-graph-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(33, 33, 33, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.services-stat-graph-modal {
+  background: #f4f7f4;
+  border: 3px solid #3e4e47;
+  border-radius: 12px;
+  max-width: 640px;
+  width: 100%;
+  padding: 24px 28px 28px;
+  box-sizing: border-box;
+  max-height: min(90vh, 560px);
+  overflow: auto;
+  box-shadow: 0 16px 48px rgba(33, 33, 33, 0.18);
+}
+
+.services-stat-graph-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.services-stat-graph-modal-title {
+  font-family: 'Satoshi', 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  color: #212121;
+  margin: 0;
+  letter-spacing: -0.36px;
+  line-height: 1.15;
+}
+
+.services-stat-graph-close {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(62, 78, 71, 0.12);
+  color: #212121;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.services-stat-graph-close:hover {
+  background: rgba(62, 78, 71, 0.2);
+}
+
+.services-stat-graph-hint {
+  font-size: 14px;
+  font-weight: 500;
+  color: #3e4e47;
+  opacity: 0.75;
+  margin: 0 0 16px;
+  line-height: 1.4;
+}
+
+.services-stat-graph-ranges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.services-stat-graph-range-btn {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 2px solid rgba(62, 78, 71, 0.35);
+  background: transparent;
+  color: #3e4e47;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.services-stat-graph-range-btn:hover {
+  border-color: #3e4e47;
+  background: rgba(62, 78, 71, 0.08);
+}
+
+.services-stat-graph-range-btn.is-active {
+  border-color: #3e4e47;
+  background: rgba(62, 78, 71, 0.14);
+  color: #212121;
+}
+
+.services-stat-graph-empty {
+  font-size: 16px;
+  color: #3e4e47;
+  opacity: 0.7;
+  margin: 24px 0;
+}
+
+.services-stat-graph-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.services-stat-graph-bar {
+  fill: #3e4e47;
+  opacity: 0.88;
+}
+
+.services-stat-graph-axis {
+  stroke: rgba(62, 78, 71, 0.35);
+  stroke-width: 2;
+}
+
+.services-stat-graph-xlabels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  justify-content: space-between;
+}
+
+.services-stat-graph-xlabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: #3e4e47;
+  opacity: 0.65;
+}
+
 /* Appointments tabs */
 .services-appt-tabs {
   display: flex;
@@ -745,6 +972,10 @@
   }
 
   .services-stats-row {
+    grid-template-columns: 1fr;
+  }
+
+  .services-overview-metrics {
     grid-template-columns: 1fr;
   }
 

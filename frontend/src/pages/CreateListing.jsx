@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import Cropper from 'react-easy-crop'
 import { supabase } from '../supabaseClient'
+import { SERVICE_CATEGORY_KEYS, SERVICE_CATEGORY_LABELS } from '../constants/serviceCategories'
 
 const MAX_IMAGES = 6
 const CROP_ASPECT = 3 / 4
@@ -39,8 +40,7 @@ export default function CreateListing({ session, userProfile, onUpdate }) {
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [listingTags, setListingTags] = useState([])
-  const [tagDraft, setTagDraft] = useState('')
+  const [category, setCategory] = useState('academic')
   const [locationOn, setLocationOn] = useState(false)
   const [locationText, setLocationText] = useState('')
   const [svcOptions, setSvcOptions] = useState([{ name: '', price: '' }])
@@ -76,6 +76,8 @@ export default function CreateListing({ session, userProfile, onUpdate }) {
       }
       setTitle(data.name || '')
       setDescription(data.description || '')
+      const cat = (data.category || 'academic').toString().trim().toLowerCase()
+      setCategory(SERVICE_CATEGORY_KEYS.includes(cat) ? cat : 'academic')
       const urls = (data.image_urls && data.image_urls.length > 0)
         ? data.image_urls
         : (data.image_url ? [data.image_url] : [])
@@ -127,16 +129,8 @@ export default function CreateListing({ session, userProfile, onUpdate }) {
     setSvcPreviews((prev) => prev.filter((_, i) => i !== idx))
   }
 
-  function addTagFromDraft() {
-    const t = tagDraft.trim().toLowerCase().replace(/,/g, '')
-    if (!t || listingTags.includes(t)) return
-    setListingTags((prev) => [...prev, t])
-    setTagDraft('')
-  }
-
   function buildDescriptionPayload() {
     const parts = []
-    if (listingTags.length) parts.push(`Tags: ${listingTags.join(', ')}`)
     if (locationOn && locationText.trim()) parts.push(`Meet-up: ${locationText.trim()}`)
     if (description.trim()) parts.push(description.trim())
     return parts.length ? parts.join('\n\n') : null
@@ -219,6 +213,7 @@ export default function CreateListing({ session, userProfile, onUpdate }) {
         .update({
           name: title.trim(),
           description: desc,
+          category,
           image_url: imageUrls[0] || null,
           image_urls: imageUrls,
         })
@@ -246,6 +241,7 @@ export default function CreateListing({ session, userProfile, onUpdate }) {
         provider_id: session.user.id,
         name: title.trim(),
         description: desc,
+        category,
         image_url: imageUrls[0] || null,
         image_urls: imageUrls,
       }).select('id').single()
@@ -323,29 +319,17 @@ export default function CreateListing({ session, userProfile, onUpdate }) {
                 required
               />
 
-              <label className="listing-create-label">Tags</label>
-              <div className="listing-create-tags-row">
-                {listingTags.map((t) => (
-                  <span key={t} className="listing-create-tag">
-                    {t}
-                    <button type="button" onClick={() => setListingTags((prev) => prev.filter((x) => x !== t))} aria-label={`Remove ${t}`}>×</button>
-                  </span>
+              <label className="listing-create-label">Category</label>
+              <select
+                className="listing-create-input"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                aria-label="Listing category"
+              >
+                {SERVICE_CATEGORY_KEYS.map((k) => (
+                  <option key={k} value={k}>{SERVICE_CATEGORY_LABELS[k]}</option>
                 ))}
-              </div>
-              <div className="listing-create-tag-add-row">
-                <input
-                  className="listing-create-input listing-create-tag-input"
-                  placeholder="Add a tag"
-                  value={tagDraft}
-                  onChange={(e) => setTagDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); addTagFromDraft() }
-                  }}
-                />
-                <button type="button" className="listing-create-btn-tag" onClick={addTagFromDraft}>
-                  + Add a tag
-                </button>
-              </div>
+              </select>
 
               <label className="listing-create-label">Description</label>
               <textarea

@@ -1,17 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
+import { SERVICE_CATEGORY_KEYS } from '../constants/serviceCategories'
 
-const ALL_TAGS = ['delivery', 'groceries', 'tutoring', 'haircuts', 'cleaning', 'laundry', 'errands', 'photography', 'tech support']
-
-const CATEGORIES = [
-  { key: 'photography', label: 'Photography' },
-  { key: 'tutoring', label: 'Tutoring' },
-  { key: 'haircuts', label: 'Haircuts' },
-  { key: 'errands', label: 'Nails' },
-  { key: 'delivery', label: 'Delivery' },
-  { key: 'tech support', label: 'Tech Support' },
-]
+const ALL_TAGS = SERVICE_CATEGORY_KEYS
 
 function Stars({ value }) {
   const n = Math.round(value || 0)
@@ -150,19 +142,15 @@ export default function Home({ session }) {
     else navigate('/')
   }
 
-  function selectCategory(catKey) {
-    setActiveTags(prev => {
-      const next = new Set(prev)
-      if (next.has(catKey)) next.delete(catKey)
-      else next.add(catKey)
-      return next
-    })
-  }
-
   function applyPopularSearch(term) {
     const lower = term.toLowerCase().replace(/"/g, '')
-    const match = ALL_TAGS.find(t => lower.includes(t)) || lower.replace(/\s+/g, '')
-    if (match) setActiveTags(prev => new Set(prev).add(match))
+    let match = ALL_TAGS.find((t) => lower.includes(t))
+    if (!match) {
+      if (/tutor|tech|delivery|grocery|errand|study|math|essay|edit/.test(lower)) match = 'academic'
+      else if (/photo|design|art|music|video|creative/.test(lower)) match = 'creative'
+      else if (/hair|nail|clean|laundry|beauty|spa|makeup/.test(lower)) match = 'beauty'
+    }
+    if (match && ALL_TAGS.includes(match)) setActiveTags((prev) => new Set(prev).add(match))
     setSearchInput(term)
     navigate(`/?q=${encodeURIComponent(term)}`)
   }
@@ -279,7 +267,7 @@ export default function Home({ session }) {
             <p className="figma-empty figma-upcoming-alert" role="alert">{homeApptError}</p>
           )}
           {upcomingAppointments.length === 0 ? (
-            <p className="figma-empty">No upcoming appointments. <Link to="/services/all">Find a service</Link></p>
+            <p className="figma-empty">No upcoming appointments. <Link to="/discover">Discover nearby</Link></p>
           ) : (
             <div className="figma-upcoming-cards">
               {upcomingAppointments.map((appt) => {

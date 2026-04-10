@@ -14,7 +14,6 @@ import Messages from './pages/Messages'
 import Discover from './pages/Discover'
 import Services from './pages/Services'
 import ServicesAvailability from './pages/ServicesAvailability'
-import AllServices from './pages/AllServices'
 import SearchResults from './pages/SearchResults'
 import Nav from './components/Nav'
 
@@ -92,7 +91,11 @@ export default function App() {
   return (
     <>
       <Nav session={session} userProfile={userProfile} />
-      <main className={`main-content${location.pathname === '/' ? ' main-content--landing' : ''}`}>
+      <main
+        className={`main-content${
+          location.pathname === '/' ? ' main-content--landing' : ''
+        }${location.pathname === '/discover' ? ' main-content--discover' : ''}`}
+      >
         <Routes>
           <Route path="/" element={<Home session={session} />} />
           <Route path="/user/:id" element={<UserProfile session={session} />} />
@@ -106,12 +109,9 @@ export default function App() {
           <Route path="/messages" element={<Messages session={session} userProfile={userProfile} />} />
           <Route path="/messages/:conversationId" element={<Messages session={session} userProfile={userProfile} />} />
           <Route path="/discover" element={<Discover />} />
-          <Route path="/services/all" element={<AllServices />} />
+          <Route path="/services/all" element={<Navigate to="/discover" replace />} />
           <Route path="/search" element={<SearchResults />} />
-          <Route
-            path="/services/stats"
-            element={(userProfile?.role === 'provider' || session?.user?.user_metadata?.role === 'provider') ? <Services session={session} userProfile={userProfile} /> : <Navigate to="/" replace />}
-          />
+          <Route path="/services/stats" element={<Navigate to="/services#stats" replace />} />
           <Route
             path="/services/availability"
             element={(userProfile?.role === 'provider' || session?.user?.user_metadata?.role === 'provider') ? <ServicesAvailability /> : <Navigate to="/" replace />}

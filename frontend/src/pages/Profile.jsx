@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
+import { normalizeServiceCategories } from '../constants/serviceCategories'
 import ProviderProfileForm from '../components/ProviderProfileForm'
 
 const AVATAR_BUCKET = 'avatars'
@@ -406,10 +407,7 @@ export default function Profile({ session, userProfile, onUpdate }) {
     setError('')
     setSuccess(false)
     setSaving(true)
-    const tagsArray = tagsInput
-      .split(',')
-      .map(s => s.trim())
-      .filter(Boolean)
+    const tagsArray = normalizeServiceCategories(tagsInput.split(',').map((s) => s.trim()).filter(Boolean))
     const { error: updateError } = await supabase
       .from('users')
       .update({
@@ -876,11 +874,11 @@ export default function Profile({ session, userProfile, onUpdate }) {
                     id="profile-tags"
                     type="text"
                     className="profile-edit-modal-input"
-                    placeholder="e.g. Freshman, Economics, Dallas TX"
+                    placeholder="academic, creative, beauty (comma-separated)"
                     value={tagsInput}
                     onChange={e => setTagsInput(e.target.value)}
                   />
-                  <span className="profile-edit-modal-hint">Comma-separated. Shown next to your profile picture.</span>
+                  <span className="profile-edit-modal-hint">Only academic, creative, or beauty — comma-separated.</span>
                 </div>
                 <div className="profile-edit-modal-actions">
                   <button type="button" className="profile-edit-modal-btn profile-edit-modal-btn-secondary" onClick={() => setShowEditModal(false)} disabled={saving}>

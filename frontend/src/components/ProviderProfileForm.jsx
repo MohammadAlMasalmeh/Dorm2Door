@@ -3,6 +3,7 @@ import AsyncSelect from 'react-select/async'
 import { MapContainer, TileLayer, Circle, Marker, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { supabase } from '../supabaseClient'
+import { SERVICE_CATEGORY_KEYS } from '../constants/serviceCategories'
 import 'leaflet/dist/leaflet.css'
 
 function ServiceAreaMapCenter({ center }) {
@@ -254,6 +255,10 @@ export default function ProviderProfileForm({ session, onSaved, compact }) {
     if ((e.key === 'Enter' || e.key === ',') && tagInput.trim()) {
       e.preventDefault()
       const t = tagInput.trim().toLowerCase().replace(/,/g, '')
+      if (!SERVICE_CATEGORY_KEYS.includes(t)) {
+        setTagInput('')
+        return
+      }
       if (!tags.includes(t)) setTags((prev) => [...prev, t])
       setTagInput('')
     }
@@ -431,7 +436,7 @@ export default function ProviderProfileForm({ session, onSaved, compact }) {
 
       <div className="provider-setup-section">
         <label className="provider-setup-section-title">Tags (Discover)</label>
-        <p className="provider-setup-hint">Press Enter or comma to add (e.g. delivery, tutoring)</p>
+        <p className="provider-setup-hint">Use academic, creative, or beauty only — press Enter or comma to add.</p>
         <div className="tags-input-wrap">
           {tags.map((t) => (
             <span key={t} className="tags-input-tag">
@@ -441,7 +446,7 @@ export default function ProviderProfileForm({ session, onSaved, compact }) {
           ))}
           <input
             className="tags-input-field"
-            placeholder={tags.length ? '' : 'delivery, tutoring…'}
+            placeholder={tags.length ? '' : 'academic, creative, beauty…'}
             value={tagInput}
             onChange={(e) => setTagInput(e.target.value)}
             onKeyDown={handleTagKey}
