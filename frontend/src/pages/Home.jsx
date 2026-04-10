@@ -1,17 +1,69 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { SERVICE_CATEGORY_KEYS } from '../constants/serviceCategories'
 
 const ALL_TAGS = SERVICE_CATEGORY_KEYS
 
-function Stars({ value }) {
-  const n = Math.round(value || 0)
-  return <span className="stars">{'★'.repeat(n)}{'☆'.repeat(5 - n)}</span>
-}
-
 function normalizeForSearch(text) {
   return (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')
+}
+
+function CarouselChevron({ dir }) {
+  return (
+    <svg
+      className="figma-cards-scroll-nav-icon"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      {dir === 'left' ? <path d="M15 6l-6 6 6 6" /> : <path d="M9 6l6 6-6 6" />}
+    </svg>
+  )
+}
+
+/** Horizontal row of service cards — overlay arrows (retail-style), optically centered chevrons. */
+function ServiceCardsScroller({ children, label = 'services' }) {
+  const scrollerRef = useRef(null)
+
+  const scrollByCards = (direction) => {
+    const el = scrollerRef.current
+    if (!el) return
+    const card = el.querySelector('.figma-service-card--cube')
+    const gap = 24
+    const step = card ? card.getBoundingClientRect().width + gap : 256
+    el.scrollBy({ left: direction * step, behavior: 'smooth' })
+  }
+
+  return (
+    <div className="figma-cards-scroll-wrap">
+      <button
+        type="button"
+        className="figma-cards-scroll-nav figma-cards-scroll-nav--prev"
+        aria-label={`Scroll ${label} left`}
+        onClick={() => scrollByCards(-1)}
+      >
+        <CarouselChevron dir="left" />
+      </button>
+      <div ref={scrollerRef} className="figma-cards-scroll">
+        {children}
+      </div>
+      <button
+        type="button"
+        className="figma-cards-scroll-nav figma-cards-scroll-nav--next"
+        aria-label={`Scroll ${label} right`}
+        onClick={() => scrollByCards(1)}
+      >
+        <CarouselChevron dir="right" />
+      </button>
+    </div>
+  )
 }
 
 export default function Home({ session }) {
@@ -155,8 +207,12 @@ export default function Home({ session }) {
     navigate(`/?q=${encodeURIComponent(term)}`)
   }
 
-  function cardImage(service) {
-    return service?.image_url || null
+  /** Prefer listing photo; fall back to provider avatar so cards aren’t empty greys. */
+  function cardImage(service, provider) {
+    const u = (service?.image_url || '').trim()
+    if (u) return u
+    const av = (provider?.users?.avatar_url || '').trim()
+    return av || null
   }
 
   function cardPrice(service) {
@@ -169,6 +225,20 @@ export default function Home({ session }) {
     const min = Math.min(...prices)
     const max = Math.max(...prices)
     return max > min ? `$${min}-${max}` : `$${Number(min).toFixed(0)}`
+  }
+
+  /** Figma-style “From $70–$100” line */
+  function cardPriceFromLabel(service) {
+    const raw = cardPrice(service)
+    if (!raw) return null
+    const inner = raw.replace(/^\$/, '')
+    return inner.includes('-') ? `From $${inner}` : `From $${inner}`
+  }
+
+  function subserviceLine(service) {
+    const names = (service?.service_options || []).map((o) => (o.name || '').trim()).filter(Boolean)
+    if (names.length < 2) return null
+    return `Add-ons: ${names.slice(0, 6).join(', ')}`
   }
 
   function handleSeeMore(sectionKey) {
@@ -186,43 +256,83 @@ export default function Home({ session }) {
   function renderServiceCard(card) {
     const p = card.provider
     const s = card.service
-    const img = cardImage(s)
+    const img = cardImage(s, p)
     const tags = (p.tags || []).slice(0, 2)
-    const priceStr = cardPrice(s)
+    const priceFrom = cardPriceFromLabel(s)
+    const subsLine = subserviceLine(s)
     const serviceName = s?.name || (p.users?.display_name || 'Provider')
     const displayName = p.users?.display_name || 'Provider'
     const avatarUrl = p.users?.avatar_url
     const initials = (displayName || 'P').slice(0, 2).toUpperCase()
+    const ratingNum =
+      (p.review_count ?? 0) > 0 && p.avg_rating != null ? Number(p.avg_rating).toFixed(2) : null
+
+    const thumbPositions = ['50% 45%', '15% 50%', '50% 50%', '85% 50%', '50% 75%']
 
     return (
       <Link
         key={card.key}
         to={`/provider/${p.id}?service=${encodeURIComponent(s.id)}`}
-        className="figma-service-card"
+        className="figma-service-card figma-service-card--cube"
       >
-        <div className="figma-service-card-img" style={img ? { backgroundImage: `url(${img})` } : {}}>
-          {!img && <div style={{ width: '100%', height: '100%', background: '#c4c4c4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontSize: 48 }}>{(displayName || 'P')[0]}</div>}
-        </div>
-        <div className="figma-service-card-body">
-          <div className="figma-service-card-tags">
-            {tags.map(t => <span key={t} className="figma-service-card-tag">{t}</span>)}
+        <div className="figma-service-card-visual" aria-hidden>
+          <div
+            className={`figma-service-card-main-img${!img ? ' figma-service-card-main-img--placeholder' : ''}`}
+            style={img ? { backgroundImage: `url(${img})` } : undefined}
+          >
+            {!img && (
+              <span className="figma-service-card-main-fallback" aria-hidden>
+                {(serviceName || displayName || 'P').slice(0, 1).toUpperCase()}
+              </span>
+            )}
           </div>
-          <h3 className="figma-service-card-name">{serviceName}</h3>
-          <div className="figma-service-card-provider">
-            {avatarUrl ? <img src={avatarUrl} alt="" className="figma-service-card-avatar" /> : <span className="figma-service-card-avatar-initials">{initials}</span>}
+          <div className="figma-service-card-thumbs">
+            {thumbPositions.map((pos, i) => (
+              <div
+                key={i}
+                className={`figma-service-card-thumb${img ? ' figma-service-card-thumb--img' : ''}`}
+                style={
+                  img
+                    ? { backgroundImage: `url(${img})`, backgroundPosition: pos }
+                    : undefined
+                }
+              />
+            ))}
+          </div>
+        </div>
+        <div className="figma-service-card-body figma-service-card-body--light">
+          {tags.length > 0 && (
+            <div className="figma-service-card-tags figma-service-card-tags--compact">
+              {tags.map((t) => (
+                <span key={t} className="figma-service-card-tag figma-service-card-tag--outline">
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+          <h3 className="figma-service-card-name figma-service-card-name--dark">{serviceName}</h3>
+          <div className="figma-service-card-price-row">
+            <span className="figma-service-card-from-price">{priceFrom || 'From $10'}</span>
+            {ratingNum != null && (
+              <span className="figma-service-card-rating-inline">
+                <span className="figma-service-card-star" aria-hidden>★</span>
+                <span>{ratingNum}</span>
+              </span>
+            )}
+          </div>
+          {subsLine && <p className="figma-service-card-subs">{subsLine}</p>}
+          <div className="figma-service-card-provider figma-service-card-provider--dark">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="figma-service-card-avatar" />
+            ) : (
+              <span className="figma-service-card-avatar-initials figma-service-card-avatar-initials--dark">
+                {initials}
+              </span>
+            )}
             <span>{displayName}</span>
           </div>
-          <div className="figma-service-card-rating">
-            <Stars value={p.avg_rating} />
-            <span>
-              {(p.review_count ?? 0) > 0 && p.avg_rating != null
-                ? `${Number(p.avg_rating).toFixed(1)} (${p.review_count})`
-                : 'New'}
-            </span>
-          </div>
-          <div className="figma-service-card-meta">
-            <span className="figma-service-card-distance">{p.location ? `${p.location}` : '.5 mi away'}</span>
-            <span className="figma-service-card-price">{priceStr || '$10-50'}</span>
+          <div className="figma-service-card-meta figma-service-card-meta--dark">
+            <span className="figma-service-card-distance">{p.location || '.5 mi away'}</span>
           </div>
         </div>
       </Link>
@@ -351,9 +461,9 @@ export default function Home({ session }) {
           {loading ? <div className="figma-loading"><div className="spinner" /></div> : serviceCards.length === 0 ? (
             <p className="figma-empty">No providers found. Try different filters or be the first to offer a service!</p>
           ) : (
-            <div className="figma-cards-scroll">
-              {serviceCards.map(card => renderServiceCard(card))}
-            </div>
+            <ServiceCardsScroller label="popular services">
+              {serviceCards.map((card) => renderServiceCard(card))}
+            </ServiceCardsScroller>
           )}
         </section>
 
@@ -376,9 +486,9 @@ export default function Home({ session }) {
             <button type="button" className="figma-section-more" onClick={() => handleSeeMore('suggested')}>See more</button>
           </div>
           {!loading && serviceCards.length > 0 && (
-            <div className="figma-cards-scroll">
-              {serviceCards.slice(0, 6).map(card => renderServiceCard(card))}
-            </div>
+            <ServiceCardsScroller label="suggested services">
+              {serviceCards.slice(0, 6).map((card) => renderServiceCard(card))}
+            </ServiceCardsScroller>
           )}
         </section>
 
@@ -389,9 +499,9 @@ export default function Home({ session }) {
             <button type="button" className="figma-section-more" onClick={() => handleSeeMore('recent')}>See more</button>
           </div>
           {!loading && serviceCards.length > 0 && (
-            <div className="figma-cards-scroll">
-              {serviceCards.slice(2, 8).map(card => renderServiceCard(card))}
-            </div>
+            <ServiceCardsScroller label="recently viewed services">
+              {serviceCards.slice(2, 8).map((card) => renderServiceCard(card))}
+            </ServiceCardsScroller>
           )}
         </section>
       </div>

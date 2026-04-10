@@ -4,7 +4,7 @@
   --figma-white: #F4F7F4;
   --figma-light-g: #7B9E78;
   --figma-black: #212121;
-  --figma-bg: #E8EFE9;
+  --figma-bg: #e7e4df;
   font-family: 'Satoshi', 'DM Sans', sans-serif;
   background: var(--figma-bg);
   min-height: 100vh;
@@ -288,10 +288,10 @@
   align-items: center;
 }
 .figma-landing .figma-section-title {
-  font-weight: 700;
-  font-size: 32px;
+  font-weight: 500;
+  font-size: 24px;
   line-height: 1;
-  letter-spacing: -0.48px;
+  letter-spacing: 0.12px;
   color: var(--figma-black);
   margin: 0;
 }
@@ -649,90 +649,311 @@
   overflow: hidden;
 }
 
-/* ── Service cards (Figma: 275.4px, gap 24px, body gap 7.2px) ─── */
+/*
+ * Service rows: Figma Service Item (1267:5485) — 232×232 hero, 8px gap, five 40×40 thumbs.
+ * Carousel arrows: overlay + chevrons (common e-com pattern), aligned to card strip.
+ */
+.figma-landing .figma-cards-scroll-wrap {
+  position: relative;
+  width: 100%;
+}
 .figma-landing .figma-cards-scroll {
   display: flex;
   gap: 24px;
   overflow-x: auto;
-  padding: 10px 5px;
+  padding: 8px 44px 14px;
   scroll-snap-type: x mandatory;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
 }
-.figma-landing .figma-service-card {
-  flex: 0 0 275px;
-  width: 275px;
-  scroll-snap-align: start;
-  background: var(--figma-dark);
+.figma-landing .figma-cards-scroll-nav {
+  position: absolute;
+  z-index: 4;
+  /* Vertically align with hero (padding 8 + half hero 228/2 = 122) */
+  top: 122px;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  margin: 0;
   border: 2px solid var(--figma-dark);
+  border-radius: 50%;
+  background: var(--figma-white);
+  color: var(--figma-dark);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 12px rgba(62, 78, 71, 0.12);
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  font-family: inherit;
+}
+.figma-landing .figma-cards-scroll-nav-icon {
+  display: block;
+  flex-shrink: 0;
+}
+/* Optical nudge so chevrons look centered in the circle */
+.figma-landing .figma-cards-scroll-nav--prev .figma-cards-scroll-nav-icon {
+  margin-right: 1px;
+}
+.figma-landing .figma-cards-scroll-nav--next .figma-cards-scroll-nav-icon {
+  margin-left: 1px;
+}
+.figma-landing .figma-cards-scroll-nav--prev {
+  left: 2px;
+}
+.figma-landing .figma-cards-scroll-nav--next {
+  right: 2px;
+}
+.figma-landing .figma-cards-scroll-nav:hover {
+  background: var(--figma-dark);
+  color: var(--figma-white);
+  border-color: var(--figma-dark);
+  box-shadow: 0 4px 16px rgba(62, 78, 71, 0.2);
+}
+.figma-landing .figma-cards-scroll-nav:focus-visible {
+  outline: 2px solid #cc6d00;
+  outline-offset: 2px;
+}
+@media (max-width: 600px) {
+  .figma-landing .figma-cards-scroll-nav {
+    width: 34px;
+    height: 34px;
+    top: 112px;
+  }
+  .figma-landing .figma-cards-scroll {
+    padding-left: 40px;
+    padding-right: 40px;
+  }
+}
+
+/* ── Service cards — Figma proportions; thumbs = one row of five 40px squares ─── */
+.figma-landing .figma-service-card.figma-service-card--cube {
+  --cube-ease: cubic-bezier(0.25, 0.85, 0.3, 1);
+  --cube-dur: 0.4s;
+  /* Square hero to full bleed width inside card (≈228px content) */
+  --cube-hero: 228px;
+  flex: 0 0 232px;
+  width: 232px;
+  scroll-snap-align: start;
+  background: rgba(255, 252, 247, 0.92);
+  border: 2px solid rgba(40, 50, 45, 0.22);
   border-radius: 16px;
   overflow: hidden;
   text-decoration: none;
   color: inherit;
   display: flex;
   flex-direction: column;
-  transition: box-shadow 0.2s, transform 0.1s ease;
+  box-shadow:
+    0 2px 12px rgba(40, 50, 45, 0.06),
+    0 12px 28px rgba(40, 50, 45, 0.04);
+  transition:
+    box-shadow var(--cube-dur) var(--cube-ease),
+    transform 0.2s ease,
+    border-color var(--cube-dur) var(--cube-ease);
 }
-.figma-landing .figma-service-card:hover {
-  box-shadow: 0 8px 24px rgba(62, 78, 71, 0.3);
+.figma-landing .figma-service-card.figma-service-card--cube:hover,
+.figma-landing .figma-service-card.figma-service-card--cube:focus-within {
+  box-shadow:
+    0 8px 28px rgba(40, 50, 45, 0.12),
+    0 20px 48px rgba(204, 109, 0, 0.08);
+  border-color: rgba(204, 109, 0, 0.35);
+  transform: translateY(-2px);
 }
-.figma-landing .figma-service-card:active {
-  transform: scale(0.99);
+.figma-landing .figma-service-card.figma-service-card--cube:active {
+  transform: translateY(0);
 }
-.figma-landing .figma-service-card-img {
-  height: 176px;
-  background: #c4c4c4;
-  background-size: cover;
-  background-position: center;
-  border-radius: 14px 14px 0 0;
-  border: 1px solid rgba(62, 78, 71, 0.25);
-  overflow: hidden;
-}
-.figma-landing .figma-service-card-body {
-  padding: 14px 14px 2px;
+.figma-landing .figma-service-card-visual {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 0;
+  padding: 8px 8px 0;
+  overflow: hidden;
+  border-radius: 14px 14px 0 0;
 }
-.figma-landing .figma-service-card-tags { display: flex; gap: 12px; flex-wrap: wrap; }
-.figma-landing .figma-service-card-tag {
-  background: var(--figma-light-g);
-  color: var(--figma-white);
-  font-size: 14px;
+/* Bleed media to card content edge (232 − borders) so 5×40 + gaps matches Figma */
+.figma-landing .figma-service-card-main-img,
+.figma-landing .figma-service-card-thumbs {
+  width: calc(100% + 16px);
+  margin-left: -8px;
+  margin-right: -8px;
+  box-sizing: border-box;
+}
+.figma-landing .figma-service-card-main-img {
+  height: var(--cube-hero);
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: #d9d9d9;
+  background-size: cover;
+  background-position: center;
+  border: 1px solid rgba(40, 50, 45, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: height var(--cube-dur) var(--cube-ease);
+}
+.figma-landing .figma-service-card-main-img--placeholder {
+  background: linear-gradient(145deg, #c5d4c1 0%, #e7e4df 48%, #b7c6b3 100%);
+}
+.figma-landing .figma-service-card-main-fallback {
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: rgba(40, 50, 45, 0.42);
+  user-select: none;
+}
+/* Figma: row of five 40×40, gap 8px — hidden until hover */
+.figma-landing .figma-service-card-thumbs {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 7px;
+  width: 100%;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  margin-top: 0;
+  padding-top: 0;
+  pointer-events: none;
+  transition:
+    max-height var(--cube-dur) var(--cube-ease),
+    opacity 0.28s ease,
+    margin-top var(--cube-dur) var(--cube-ease);
+}
+.figma-landing .figma-service-card-thumb {
+  flex: 1 1 0;
+  min-width: 0;
+  width: 0;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: #d9d9d9;
+  border: 1px solid rgba(40, 50, 45, 0.12);
+  box-sizing: border-box;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, height var(--cube-dur) var(--cube-ease);
+}
+.figma-landing .figma-service-card-thumb--img {
+  background-size: cover;
+  background-position: center;
+}
+.figma-landing .figma-service-card.figma-service-card--cube:hover .figma-service-card-main-img,
+.figma-landing .figma-service-card.figma-service-card--cube:focus-within .figma-service-card-main-img {
+  height: 100px;
+}
+.figma-landing .figma-service-card.figma-service-card--cube:hover .figma-service-card-thumbs,
+.figma-landing .figma-service-card.figma-service-card--cube:focus-within .figma-service-card-thumbs {
+  max-height: 56px;
+  opacity: 1;
+  margin-top: 8px;
+  pointer-events: auto;
+}
+.figma-landing .figma-service-card.figma-service-card--cube:hover .figma-service-card-thumb,
+.figma-landing .figma-service-card.figma-service-card--cube:focus-within .figma-service-card-thumb {
+  height: 40px;
+  box-shadow: 0 1px 6px rgba(40, 50, 45, 0.08);
+  border-color: rgba(40, 50, 45, 0.18);
+}
+@media (prefers-reduced-motion: reduce) {
+  .figma-landing .figma-service-card.figma-service-card--cube,
+  .figma-landing .figma-service-card-main-img,
+  .figma-landing .figma-service-card-thumbs,
+  .figma-landing .figma-service-card-thumb {
+    transition: none;
+  }
+  .figma-landing .figma-service-card.figma-service-card--cube:hover,
+  .figma-landing .figma-service-card.figma-service-card--cube:focus-within {
+    transform: none;
+  }
+  .figma-landing .figma-service-card.figma-service-card--cube .figma-service-card-main-img {
+    height: 180px;
+  }
+  .figma-landing .figma-service-card.figma-service-card--cube .figma-service-card-thumbs {
+    max-height: 56px;
+    opacity: 1;
+    margin-top: 8px;
+    pointer-events: auto;
+  }
+}
+.figma-landing .figma-service-card-body--light {
+  padding: 12px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.figma-landing .figma-service-card-tags--compact {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.figma-landing .figma-service-card-tag--outline {
+  background: transparent;
+  color: #28322d;
+  border: 1px solid rgba(40, 50, 45, 0.45);
+  font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.21px;
-  padding: 6px 16px;
+  letter-spacing: 0.12px;
+  padding: 4px 10px;
   border-radius: 8px;
 }
-.figma-landing .figma-service-card-name {
+.figma-landing .figma-service-card-name--dark {
   font-size: 20px;
   font-weight: 500;
-  color: var(--figma-white);
+  color: #212121;
   margin: 0;
+  line-height: 1.2;
 }
-.figma-landing .figma-service-card-provider,
-.figma-landing .figma-service-card-rating {
+.figma-landing .figma-service-card-price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.figma-landing .figma-service-card-from-price {
   font-size: 16px;
   font-weight: 500;
-  color: var(--figma-white);
-  display: flex;
+  color: #212121;
+}
+.figma-landing .figma-service-card-rating-inline {
+  display: inline-flex;
   align-items: center;
-  gap: 7px;
-}
-.figma-landing .figma-service-card-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 4px;
-}
-.figma-landing .figma-service-card-distance {
-  font-size: 14px;
-  letter-spacing: 0.21px;
-  color: var(--figma-white);
-  opacity: 0.6;
-}
-.figma-landing .figma-service-card-price {
-  font-size: 20px;
+  gap: 5px;
+  font-size: 16px;
   font-weight: 500;
-  color: var(--figma-white);
+  color: #212121;
+}
+.figma-landing .figma-service-card-star {
+  color: #cc6d00;
+  font-size: 15px;
+  line-height: 1;
+}
+.figma-landing .figma-service-card-subs {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.21px;
+  color: #212121;
+  opacity: 0.7;
+  line-height: 1.35;
+}
+.figma-landing .figma-service-card-provider--dark {
+  font-size: 14px;
+  font-weight: 500;
+  color: #212121;
+  opacity: 0.75;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+.figma-landing .figma-service-card-meta--dark {
+  margin-top: 0;
+}
+.figma-landing .figma-service-card-meta--dark .figma-service-card-distance {
+  font-size: 13px;
+  letter-spacing: 0.15px;
+  color: #212121;
+  opacity: 0.55;
 }
 .figma-landing .figma-service-card-avatar {
   width: 22px;
@@ -741,12 +962,12 @@
   object-fit: cover;
   flex-shrink: 0;
 }
-.figma-landing .figma-service-card-avatar-initials {
+.figma-landing .figma-service-card-avatar-initials--dark {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: var(--figma-light-g);
-  color: var(--figma-white);
+  background: #b7c6b3;
+  color: #28322d;
   font-size: 10px;
   font-weight: 700;
   display: flex;
@@ -754,7 +975,6 @@
   justify-content: center;
   flex-shrink: 0;
 }
-.figma-landing .figma-service-card .stars { color: var(--figma-white); }
 
 /* ── Popular chips (Figma: 2px border, 10px padding, 16px text) ── */
 .figma-landing .figma-popular-chips {
@@ -763,20 +983,21 @@
   gap: 24px;
 }
 .figma-landing .figma-popular-chip {
-  background: var(--figma-white);
-  border: 2px solid var(--figma-dark);
+  background: rgba(255, 252, 247, 0.95);
+  border: 1px solid #28322d;
   border-radius: 16px;
-  padding: 10px 20px;
-  font-size: 16px;
+  padding: 8px 12px;
+  font-size: 20px;
   font-weight: 500;
-  color: var(--figma-dark);
+  color: #28322d;
   cursor: pointer;
   font-family: inherit;
-  transition: background 0.2s, color 0.2s;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
 .figma-landing .figma-popular-chip:hover {
-  background: var(--figma-dark);
+  background: #28322d;
   color: var(--figma-white);
+  border-color: #28322d;
 }
 
 /* ── Category grid (Figma: gap 20px 19px, card 184px height) ───── */
