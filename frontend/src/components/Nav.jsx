@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link, NavLink } from 'react-router-dom'
+import { Link, NavLink, useLocation } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 
 function ServicesIcon() {
@@ -63,10 +63,10 @@ function BellIcon() {
     </svg>
   )
 }
-function ChatIcon() {
+function ChevronDownIcon() {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    <svg className="nav-profile-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polyline points="6 9 12 15 18 9" />
     </svg>
   )
 }
@@ -96,6 +96,8 @@ function timeAgo(ts) {
 }
 
 export default function Nav({ session, userProfile }) {
+  const location = useLocation()
+  const isProvider = userProfile?.role === 'provider' || session?.user?.user_metadata?.role === 'provider'
   const avatarUrl = userProfile?.avatar_url
   const initials = (userProfile?.display_name || session?.user?.email || '?')
     .split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -105,6 +107,16 @@ export default function Nav({ session, userProfile }) {
   const [unreadCount, setUnreadCount] = useState(0)
   const [showNotifDropdown, setShowNotifDropdown] = useState(false)
   const notifRef = useRef(null)
+
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false)
+  const profileRef = useRef(null)
+
+  const profileMenuRouteActive =
+    location.pathname.startsWith('/profile') ||
+    location.pathname.startsWith('/discover') ||
+    location.pathname.startsWith('/messages') ||
+    location.pathname.startsWith('/appointments') ||
+    (isProvider && location.pathname.startsWith('/services') && !location.pathname.startsWith('/services/all'))
 
   // Fetch notifications and subscribe to realtime
   useEffect(() => {
@@ -137,11 +149,18 @@ export default function Nav({ session, userProfile }) {
     return () => { supabase.removeChannel(channel) }
   }, [session?.user?.id])
 
-  // Close dropdown when clicking outside
+  useEffect(() => {
+    setShowProfileDropdown(false)
+  }, [location.pathname])
+
+  // Close dropdowns when clicking outside
   useEffect(() => {
     function handleClick(e) {
       if (notifRef.current && !notifRef.current.contains(e.target)) {
         setShowNotifDropdown(false)
+      }
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setShowProfileDropdown(false)
       }
     }
     document.addEventListener('mousedown', handleClick)
@@ -178,30 +197,6 @@ export default function Nav({ session, userProfile }) {
       </div>
 
       <div className="nav-right nav-right-stack">
-        {((userProfile?.role === 'provider') || (session?.user?.user_metadata?.role === 'provider')) && (
-          <NavLink to="/services" className={({ isActive }) => `nav-stack-item${isActive ? ' active' : ''}`}>
-            <ServicesIcon />
-            <span>Services</span>
-          </NavLink>
-        )}
-
-        <NavLink to="/discover" className={({ isActive }) => `nav-stack-item nav-stack-discover${isActive ? ' active' : ''}`}>
-          <MapIcon />
-          <span>Discover</span>
-        </NavLink>
-
-        {!(userProfile?.role === 'provider' || session?.user?.user_metadata?.role === 'provider') && (
-          <NavLink to="/appointments" className={({ isActive }) => `nav-stack-item${isActive ? ' active' : ''}`}>
-            <CalendarIcon />
-            <span>Bookings</span>
-          </NavLink>
-        )}
-
-        <NavLink to="/messages" className={({ isActive }) => `nav-stack-item${isActive ? ' active' : ''}`}>
-          <MessagesIcon />
-          <span>Messages</span>
-        </NavLink>
-
         {/* Notifications bell with dropdown */}
         <div className="nav-notif-wrap" ref={notifRef}>
               <button
@@ -289,14 +284,91 @@ export default function Nav({ session, userProfile }) {
               )}
         </div>
 
-        <NavLink to="/profile" className={({ isActive }) => `nav-stack-item${isActive ? ' active' : ''}`}>
-          {avatarUrl ? (
-            <img src={avatarUrl} alt="" className="nav-stack-avatar" />
-          ) : (
-            <span className="nav-stack-avatar nav-stack-avatar-initials">{initials}</span>
+        <div className={`nav-profile-wrap${showProfileDropdown ? ' nav-profile-wrap-open' : ''}`} ref={profileRef}>
+          <button
+            type="button"
+            className={`nav-stack-item${showProfileDropdown || profileMenuRouteActive ? ' active' : ''}`}
+            aria-expanded={showProfileDropdown}
+            aria-haspopup="menu"
+            onClick={() => setShowProfileDropdown((p) => !p)}
+          >
+            <span className="nav-profile-trigger-row">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="" className="nav-stack-avatar" />
+              ) : (
+                <span className="nav-stack-avatar nav-stack-avatar-initials">{initials}</span>
+              )}
+              <ChevronDownIcon />
+            </span>
+            <span>Profile</span>
+          </button>
+
+          {showProfileDropdown && (
+            <div className="nav-profile-dropdown" role="menu">
+              <NavLink
+                to="/profile"
+                role="menuitem"
+                className={({ isActive }) => `nav-profile-dropdown-item${isActive ? ' active' : ''}`}
+                onClick={() => setShowProfileDropdown(false)}
+              >
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="" className="nav-profile-dropdown-avatar" />
+                ) : (
+                  <span className="nav-profile-dropdown-avatar nav-stack-avatar-initials">{initials}</span>
+                )}
+                Profile
+              </NavLink>
+              <NavLink
+                to="/discover"
+                role="menuitem"
+                className={({ isActive }) => `nav-profile-dropdown-item${isActive ? ' active' : ''}`}
+                onClick={() => setShowProfileDropdown(false)}
+              >
+                <span className="nav-profile-dropdown-icon" aria-hidden>
+                  <MapIcon />
+                </span>
+                Discover
+              </NavLink>
+              {!isProvider && (
+                <NavLink
+                  to="/appointments"
+                  role="menuitem"
+                  className={({ isActive }) => `nav-profile-dropdown-item${isActive ? ' active' : ''}`}
+                  onClick={() => setShowProfileDropdown(false)}
+                >
+                  <span className="nav-profile-dropdown-icon" aria-hidden>
+                    <CalendarIcon />
+                  </span>
+                  Bookings
+                </NavLink>
+              )}
+              <NavLink
+                to="/messages"
+                role="menuitem"
+                className={({ isActive }) => `nav-profile-dropdown-item${isActive ? ' active' : ''}`}
+                onClick={() => setShowProfileDropdown(false)}
+              >
+                <span className="nav-profile-dropdown-icon nav-profile-dropdown-icon--img" aria-hidden>
+                  <MessagesIcon />
+                </span>
+                Messages
+              </NavLink>
+              {isProvider && (
+                <NavLink
+                  to="/services"
+                  role="menuitem"
+                  className={({ isActive }) => `nav-profile-dropdown-item${isActive ? ' active' : ''}`}
+                  onClick={() => setShowProfileDropdown(false)}
+                >
+                  <span className="nav-profile-dropdown-icon nav-profile-dropdown-icon--img" aria-hidden>
+                    <ServicesIcon />
+                  </span>
+                  Services
+                </NavLink>
+              )}
+            </div>
           )}
-          <span>Profile</span>
-        </NavLink>
+        </div>
       </div>
     </nav>
   )

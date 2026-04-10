@@ -582,7 +582,7 @@ export default function Profile({ session, userProfile, onUpdate }) {
               <section className="profile-section">
                 {favoritedServices.length === 0 ? (
                   <p className="profile-section-desc">
-                    No favorited services yet. Tap the heart on a provider&apos;s listing photo to save it here.
+                    No favorited services yet. Tap the heart on a service row or listing photo to save it here.
                   </p>
                 ) : (
                   <div className="profile-services-grid">

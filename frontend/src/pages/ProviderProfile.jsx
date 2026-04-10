@@ -195,10 +195,10 @@ export default function ProviderProfile({ session }) {
   const mainImage = mainSlide?.url
   const favoriteTargetServiceId = mainSlide?.serviceId
 
-  async function handleToggleFavorite() {
-    if (!session?.user?.id || isOwn || !favoriteTargetServiceId) return
+  async function handleToggleFavorite(serviceId) {
+    const sid = serviceId ?? favoriteTargetServiceId
+    if (!session?.user?.id || isOwn || !sid) return
     const uid = session.user.id
-    const sid = favoriteTargetServiceId
     const isFav = favoriteServiceIds.has(sid)
     if (isFav) {
       const { error } = await supabase.from('service_favorites').delete().eq('user_id', uid).eq('service_id', sid)
@@ -379,11 +379,33 @@ export default function ProviderProfile({ session }) {
             ) : (
               allOptions.map(opt => (
                 <div key={opt.id} className="listing-service-card">
-                  <p className="listing-service-name">
-                    {opt.serviceName && opt.name !== opt.serviceName
-                      ? `${opt.serviceName} (${opt.name})`
-                      : opt.name}
-                  </p>
+                  <div className="listing-service-left">
+                    {!isOwn && session && opt.serviceId ? (
+                      <button
+                        type="button"
+                        className={`listing-service-favorite-btn${favoriteServiceIds.has(opt.serviceId) ? ' listing-service-favorite-btn--on' : ''}`}
+                        onClick={() => void handleToggleFavorite(opt.serviceId)}
+                        aria-label={
+                          favoriteServiceIds.has(opt.serviceId)
+                            ? 'Remove from favorites'
+                            : 'Add to favorites'
+                        }
+                        aria-pressed={favoriteServiceIds.has(opt.serviceId)}
+                      >
+                        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden>
+                          <path
+                            fill="currentColor"
+                            d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+                          />
+                        </svg>
+                      </button>
+                    ) : null}
+                    <p className="listing-service-name">
+                      {opt.serviceName && opt.name !== opt.serviceName
+                        ? `${opt.serviceName} (${opt.name})`
+                        : opt.name}
+                    </p>
+                  </div>
                   <div className="listing-service-right">
                     <div className="listing-service-price-block">
                       <span className="listing-service-price">${Number(opt.price || 0).toFixed(0)}+</span>

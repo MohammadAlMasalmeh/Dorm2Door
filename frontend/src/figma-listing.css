@@ -365,11 +365,43 @@
   border-radius: 8px;
   padding: 14px 16px;
 }
+.figma-listing .listing-service-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+.figma-listing .listing-service-favorite-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.9);
+  color: rgba(33, 33, 33, 0.45);
+  cursor: pointer;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1);
+  transition: color 0.15s ease, transform 0.12s ease, background 0.15s ease;
+}
+.figma-listing .listing-service-favorite-btn:hover {
+  transform: scale(1.06);
+  color: rgba(33, 33, 33, 0.75);
+}
+.figma-listing .listing-service-favorite-btn--on {
+  color: #b91c1c;
+}
 .figma-listing .listing-service-name {
   font-size: 1rem;
   font-weight: 500;
   color: var(--figma-text);
   margin: 0;
+  min-width: 0;
+  flex: 1;
 }
 .figma-listing .listing-service-right {
   display: flex;

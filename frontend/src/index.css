@@ -314,9 +314,6 @@ body {
   background: #e7e4df;
   padding: 0 0 32px;
   max-width: none;
-  min-height: calc(100vh - var(--nav-h));
-  display: flex;
-  flex-direction: column;
 }
 
 /* Search results — full-bleed warm background (avoid white main + nested grey panels) */
@@ -4675,6 +4672,82 @@ textarea.form-input {
 .nav-notif-wrap {
   position: relative;
 }
+.nav-profile-wrap {
+  position: relative;
+}
+.nav-profile-trigger-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.nav-profile-chevron {
+  flex-shrink: 0;
+  opacity: 0.9;
+  transition: transform 0.15s ease;
+}
+.nav-profile-wrap-open .nav-profile-chevron {
+  transform: rotate(180deg);
+}
+.nav-profile-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 8px 0;
+  z-index: 200;
+}
+.nav-profile-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  color: var(--text-primary);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  font-family: 'Satoshi', 'DM Sans', sans-serif;
+  transition: background 0.12s;
+}
+.nav-profile-dropdown-item:hover {
+  background: var(--accent-bg);
+}
+.nav-profile-dropdown-item.active {
+  color: var(--primary, #2d5a4a);
+  background: var(--accent-bg);
+}
+.nav-profile-dropdown-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+.nav-profile-dropdown-icon svg {
+  width: 22px;
+  height: 22px;
+}
+.nav-profile-dropdown-icon--img .nav-stack-icon-img {
+  width: 22px;
+  height: 22px;
+}
+.nav-profile-dropdown-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 2px solid rgba(45, 90, 74, 0.2);
+}
+.nav-profile-dropdown-item .nav-stack-avatar-initials {
+  width: 28px;
+  height: 28px;
+  font-size: 0.65rem;
+}
 .nav-notif-wrap .nav-stack-item {
   background: none;
   border: none;
@@ -5037,15 +5110,10 @@ textarea.form-input {
   max-width: 1280px;
   margin: 0 auto;
   padding: 0 16px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
 }
 
 .messages-toolbar {
   padding: 16px 8px 12px;
-  flex-shrink: 0;
 }
 
 .messages-toolbar-title {
@@ -5820,7 +5888,7 @@ textarea.form-input {
 @media (max-width: 768px) {
   .messages-layout {
     grid-template-columns: 1fr;
-    min-height: 0;
+    min-height: calc(100vh - var(--nav-h) - 100px);
   }
   .messages-col-hidden-mobile {
     display: none !important;
