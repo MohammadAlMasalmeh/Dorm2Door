@@ -926,21 +926,6 @@
   font-size: 1rem;
 }
 
-.services-availability-alert {
-  background: #fff3f3;
-  border: 1px solid #e5bcbc;
-  color: #802a2a;
-  border-radius: 12px;
-  padding: 12px 14px;
-  margin-bottom: 16px;
-}
-
-.services-availability-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
 .services-availability-btn {
   border: 1px solid transparent;
   border-radius: 10px;
@@ -948,6 +933,12 @@
   font-size: 0.95rem;
   font-weight: 500;
   cursor: pointer;
+}
+
+a.services-availability-btn.services-availability-btn-inline {
+  display: inline-block;
+  text-decoration: none;
+  margin-top: 8px;
 }
 
 .services-availability-btn:disabled {
@@ -964,76 +955,11 @@
   background: #2f3d37;
 }
 
-.services-availability-btn-outline {
-  background: transparent;
-  border-color: rgba(62, 78, 71, 0.35);
-  color: #3e4e47;
-}
-
-.services-availability-grid {
-  display: grid;
-  grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
-  gap: 20px;
-}
-
 .services-availability-card {
   background: #f4f7f4;
   border: 1px solid rgba(62, 78, 71, 0.2);
   border-radius: 16px;
   padding: 20px;
-}
-
-.services-availability-title {
-  margin: 0 0 16px;
-  font-size: 1.2rem;
-}
-
-.services-availability-events {
-  display: grid;
-  gap: 12px;
-}
-
-.services-availability-event {
-  background: #fff;
-  border: 1px solid rgba(62, 78, 71, 0.15);
-  border-radius: 12px;
-  padding: 12px;
-}
-
-.services-availability-event-title {
-  margin: 0;
-  font-weight: 600;
-}
-
-.services-availability-event-time,
-.services-availability-event-meta {
-  margin: 4px 0 0;
-  font-size: 0.92rem;
-  color: rgba(33, 33, 33, 0.75);
-}
-
-.services-availability-form {
-  display: grid;
-  gap: 12px;
-}
-
-.services-availability-label {
-  display: grid;
-  gap: 6px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #3e4e47;
-}
-
-.services-availability-input {
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid rgba(62, 78, 71, 0.25);
-  border-radius: 10px;
-  padding: 10px 12px;
-  background: #fff;
-  font-family: inherit;
-  font-size: 0.95rem;
 }
 
 @media (max-width: 900px) {
@@ -1071,10 +997,6 @@
   }
 
   .services-overview-metrics {
-    grid-template-columns: 1fr;
-  }
-
-  .services-availability-grid {
     grid-template-columns: 1fr;
   }
 
