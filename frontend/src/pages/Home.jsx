@@ -1,9 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
-import { SERVICE_CATEGORY_KEYS } from '../constants/serviceCategories'
-
-const ALL_TAGS = SERVICE_CATEGORY_KEYS
 
 function normalizeForSearch(text) {
   return (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')
@@ -74,15 +71,13 @@ export default function Home({ session }) {
 
   const [providers, setProviders] = useState([])
   const [loading, setLoading] = useState(true)
-  const [activeTags, setActiveTags] = useState(new Set())
   const [sortBy, setSortBy] = useState('rating')
   const [upcomingAppointments, setUpcomingAppointments] = useState([])
-  const [popularSearches, setPopularSearches] = useState([])
   const [homeApptBusy, setHomeApptBusy] = useState(null)
   const [homeApptError, setHomeApptError] = useState('')
 
   useEffect(() => { setSearchInput(queryFromUrl) }, [queryFromUrl])
-  useEffect(() => { fetchProviders() }, [activeTags, sortBy])
+  useEffect(() => { fetchProviders() }, [sortBy])
 
   const fetchUpcomingAppointments = useCallback(async () => {
     if (!session?.user?.id) {
@@ -122,22 +117,6 @@ export default function Home({ session }) {
     await fetchUpcomingAppointments()
   }
 
-  useEffect(() => {
-    Promise.all([
-      supabase.from('services').select('name'),
-      supabase.from('providers').select('tags'),
-    ]).then(([svcRes, provRes]) => {
-      const counts = {}
-      const normalize = (s) => (s || '').trim().toLowerCase()
-      ;(svcRes.data || []).forEach((r) => { const n = normalize(r.name); if (n) counts[n] = (counts[n] || 0) + 1 })
-      ;(provRes.data || []).forEach((r) => {
-        (r.tags || []).forEach((t) => { const tag = normalize(t); if (tag) counts[tag] = (counts[tag] || 0) + 1 })
-      })
-      const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([term]) => term)
-      setPopularSearches(sorted.length ? sorted : ['House Party DJ', 'Tutoring', 'Haircut', 'Moving Help', 'Cleaning', 'Dog Walking'])
-    })
-  }, [])
-
   async function fetchProviders() {
     setLoading(true)
     const fieldsWithCount =
@@ -146,7 +125,6 @@ export default function Home({ session }) {
       'id, bio, tags, avg_rating, location, users (display_name, avatar_url), services (id, image_url, price, name, service_options (id, name, price))'
     function providersQuery(fields) {
       let q = supabase.from('providers').select(fields)
-      if (activeTags.size > 0) q = q.overlaps('tags', [...activeTags])
       if (sortBy === 'rating') q = q.order('avg_rating', { ascending: false })
       else q = q.order('id', { ascending: false })
       return q
@@ -194,19 +172,6 @@ export default function Home({ session }) {
     else navigate('/')
   }
 
-  function applyPopularSearch(term) {
-    const lower = term.toLowerCase().replace(/"/g, '')
-    let match = ALL_TAGS.find((t) => lower.includes(t))
-    if (!match) {
-      if (/tutor|tech|delivery|grocery|errand|study|math|essay|edit/.test(lower)) match = 'academic'
-      else if (/photo|design|art|music|video|creative/.test(lower)) match = 'creative'
-      else if (/hair|nail|clean|laundry|beauty|spa|makeup/.test(lower)) match = 'beauty'
-    }
-    if (match && ALL_TAGS.includes(match)) setActiveTags((prev) => new Set(prev).add(match))
-    setSearchInput(term)
-    navigate(`/?q=${encodeURIComponent(term)}`)
-  }
-
   /** Prefer listing photo; fall back to provider avatar so cards aren’t empty greys. */
   function cardImage(service, provider) {
     const u = (service?.image_url || '').trim()
@@ -248,7 +213,6 @@ export default function Home({ session }) {
       state: {
         section: sectionKey,
         q: queryFromUrl,
-        activeTags: [...activeTags],
       },
     })
   }
@@ -465,18 +429,6 @@ export default function Home({ session }) {
               {serviceCards.map((card) => renderServiceCard(card))}
             </ServiceCardsScroller>
           )}
-        </section>
-
-        {/* Popular searches */}
-        <section className="figma-section">
-          <h2 className="figma-section-title">Popular searches</h2>
-          <div className="figma-popular-chips">
-            {(popularSearches.length ? popularSearches : ['House Party DJ', 'Tutoring', 'Haircut', 'Moving Help', 'Cleaning']).map(term => (
-              <button key={term} type="button" className="figma-popular-chip" onClick={() => applyPopularSearch(term)}>
-                &quot;{term.replace(/\b\w/g, c => c.toUpperCase())}&quot;
-              </button>
-            ))}
-          </div>
         </section>
 
         {/* Suggested For you */}

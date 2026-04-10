@@ -2,30 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 
-function ServicesIcon() {
-  return (
-    <img
-      src="/nav-icon-services.svg"
-      alt=""
-      className="nav-stack-icon-img"
-      width={32}
-      height={32}
-      aria-hidden
-    />
-  )
-}
-function MessagesIcon() {
-  return (
-    <img
-      src="/nav-icon-messages.svg"
-      alt=""
-      className="nav-stack-icon-img"
-      width={32}
-      height={32}
-      aria-hidden
-    />
-  )
-}
 function CalendarIcon() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -45,11 +21,29 @@ function MapIcon() {
     </svg>
   )
 }
-function BellIcon() {
+/** Stroke icons for light dropdown — nav PNG/SVG assets are filled light for the dark bar */
+function MessagesMenuIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 7.5 7.5 0 0 1 .9-3.8 8.38 8.38 0 0 1 3.8-3.8 8.5 8.5 0 0 1 7.6 0 8.38 8.38 0 0 1 3.8 3.8 7.5 7.5 0 0 1 .9 3.8z" />
+    </svg>
+  )
+}
+function ServicesMenuIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z" />
+      <path d="M3 9V7a2 2 0 0 1 1-1l7-3 7 3a2 2 0 0 1 1 1v2" />
+      <line x1="9" y1="14" x2="15" y2="14" />
+    </svg>
+  )
+}
+function BellIcon({ size = 32, className, menuStyle }) {
   return (
     <svg
-      width={32}
-      height={32}
+      className={className}
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -59,14 +53,28 @@ function BellIcon() {
       aria-hidden
     >
       <path d="M18 8A6 6 0 0 0 6 8c0 7-3 7-3 7h18s-3 0-3-7" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+      {menuStyle ? (
+        <circle cx="12" cy="21" r="1.25" fill="currentColor" stroke="none" />
+      ) : (
+        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+      )}
     </svg>
   )
 }
 function ChevronDownIcon() {
   return (
-    <svg className="nav-profile-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg className="nav-profile-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <polyline points="6 9 12 15 18 9" />
+    </svg>
+  )
+}
+
+function LogOutIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
     </svg>
   )
 }
@@ -287,20 +295,22 @@ export default function Nav({ session, userProfile }) {
         <div className={`nav-profile-wrap${showProfileDropdown ? ' nav-profile-wrap-open' : ''}`} ref={profileRef}>
           <button
             type="button"
-            className={`nav-stack-item${showProfileDropdown || profileMenuRouteActive ? ' active' : ''}`}
+            className={`nav-stack-item nav-stack-item--profile${showProfileDropdown || profileMenuRouteActive ? ' active' : ''}`}
             aria-expanded={showProfileDropdown}
             aria-haspopup="menu"
             onClick={() => setShowProfileDropdown((p) => !p)}
           >
-            <span className="nav-profile-trigger-row">
+            <span className="nav-profile-avatar-wrap">
               {avatarUrl ? (
                 <img src={avatarUrl} alt="" className="nav-stack-avatar" />
               ) : (
                 <span className="nav-stack-avatar nav-stack-avatar-initials">{initials}</span>
               )}
-              <ChevronDownIcon />
+              <span className="nav-profile-chevron-fab" aria-hidden>
+                <ChevronDownIcon />
+              </span>
             </span>
-            <span>Profile</span>
+            <span className="nav-profile-trigger-label">Profile</span>
           </button>
 
           {showProfileDropdown && (
@@ -308,15 +318,20 @@ export default function Nav({ session, userProfile }) {
               <NavLink
                 to="/profile"
                 role="menuitem"
-                className={({ isActive }) => `nav-profile-dropdown-item${isActive ? ' active' : ''}`}
+                className={({ isActive }) =>
+                  `nav-profile-dropdown-item nav-profile-dropdown-item--profile${isActive ? ' active' : ''}`
+                }
                 onClick={() => setShowProfileDropdown(false)}
               >
                 {avatarUrl ? (
-                  <img src={avatarUrl} alt="" className="nav-profile-dropdown-avatar" />
+                  <img src={avatarUrl} alt="" className="nav-profile-dropdown-avatar-lg" />
                 ) : (
-                  <span className="nav-profile-dropdown-avatar nav-stack-avatar-initials">{initials}</span>
+                  <span className="nav-profile-dropdown-avatar-lg nav-stack-avatar-initials">{initials}</span>
                 )}
-                Profile
+                <span className="nav-profile-dropdown-profile-text">
+                  <span className="nav-profile-dropdown-name">{userProfile?.display_name || 'Your profile'}</span>
+                  <span className="nav-profile-dropdown-sub">View profile</span>
+                </span>
               </NavLink>
               <NavLink
                 to="/discover"
@@ -329,27 +344,25 @@ export default function Nav({ session, userProfile }) {
                 </span>
                 Discover
               </NavLink>
-              {!isProvider && (
-                <NavLink
-                  to="/appointments"
-                  role="menuitem"
-                  className={({ isActive }) => `nav-profile-dropdown-item${isActive ? ' active' : ''}`}
-                  onClick={() => setShowProfileDropdown(false)}
-                >
-                  <span className="nav-profile-dropdown-icon" aria-hidden>
-                    <CalendarIcon />
-                  </span>
-                  Bookings
-                </NavLink>
-              )}
+              <NavLink
+                to="/appointments"
+                role="menuitem"
+                className={({ isActive }) => `nav-profile-dropdown-item${isActive ? ' active' : ''}`}
+                onClick={() => setShowProfileDropdown(false)}
+              >
+                <span className="nav-profile-dropdown-icon" aria-hidden>
+                  <CalendarIcon />
+                </span>
+                Bookings
+              </NavLink>
               <NavLink
                 to="/messages"
                 role="menuitem"
                 className={({ isActive }) => `nav-profile-dropdown-item${isActive ? ' active' : ''}`}
                 onClick={() => setShowProfileDropdown(false)}
               >
-                <span className="nav-profile-dropdown-icon nav-profile-dropdown-icon--img" aria-hidden>
-                  <MessagesIcon />
+                <span className="nav-profile-dropdown-icon" aria-hidden>
+                  <MessagesMenuIcon />
                 </span>
                 Messages
               </NavLink>
@@ -360,12 +373,41 @@ export default function Nav({ session, userProfile }) {
                   className={({ isActive }) => `nav-profile-dropdown-item${isActive ? ' active' : ''}`}
                   onClick={() => setShowProfileDropdown(false)}
                 >
-                  <span className="nav-profile-dropdown-icon nav-profile-dropdown-icon--img" aria-hidden>
-                    <ServicesIcon />
+                  <span className="nav-profile-dropdown-icon" aria-hidden>
+                    <ServicesMenuIcon />
                   </span>
                   Services
                 </NavLink>
               )}
+              <button
+                type="button"
+                role="menuitem"
+                className="nav-profile-dropdown-item"
+                onClick={() => {
+                  setShowProfileDropdown(false)
+                  setShowNotifDropdown(true)
+                }}
+              >
+                <span className="nav-profile-dropdown-icon" aria-hidden>
+                  <BellIcon size={22} menuStyle />
+                </span>
+                Notifications
+              </button>
+              <div className="nav-profile-dropdown-sep" role="presentation" />
+              <button
+                type="button"
+                role="menuitem"
+                className="nav-profile-dropdown-item nav-profile-dropdown-item--danger"
+                onClick={() => {
+                  setShowProfileDropdown(false)
+                  supabase.auth.signOut()
+                }}
+              >
+                <span className="nav-profile-dropdown-icon" aria-hidden>
+                  <LogOutIcon />
+                </span>
+                Sign out
+              </button>
             </div>
           )}
         </div>
