@@ -6,26 +6,21 @@ const supabaseUrl = typeof import.meta.env.VITE_SUPABASE_URL === 'string' ? impo
 const supabaseAnonKey =
   typeof import.meta.env.VITE_SUPABASE_ANON_KEY === 'string' ? import.meta.env.VITE_SUPABASE_ANON_KEY.trim() : ''
 
-/**
- * True when real Supabase credentials are present at build time.
- * If false, `supabase` uses a placeholder client so the bundle does not throw on import
- * (createClient('', '') throws "supabaseUrl is required" — which caused a blank page on Vercel without env vars).
- */
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
+const configured = Boolean(supabaseUrl && supabaseAnonKey)
 
-if (!isSupabaseConfigured) {
+if (!configured) {
   console.error(
-    'Dorm2Door: Missing Supabase env. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (e.g. in Vercel → Settings → Environment Variables), then redeploy.'
+    'Dorm2Door: Missing Supabase env. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (or SUPABASE_URL and SUPABASE_ANON_KEY on Vercel), then redeploy. See vite.config.js.'
   )
 }
 
-/** Placeholder values satisfy createClient(); real requests must be gated on isSupabaseConfigured. */
+/** Placeholder avoids createClient("", "") which throws and whitescreens the app. */
 const PLACEHOLDER_URL = 'https://invalid-placeholder.supabase.co'
 const PLACEHOLDER_KEY = 'sb-placeholder-anon-key-not-for-production'
 
 export const supabase = createClient(
-  isSupabaseConfigured ? supabaseUrl : PLACEHOLDER_URL,
-  isSupabaseConfigured ? supabaseAnonKey : PLACEHOLDER_KEY
+  configured ? supabaseUrl : PLACEHOLDER_URL,
+  configured ? supabaseAnonKey : PLACEHOLDER_KEY
 )
 
 /**

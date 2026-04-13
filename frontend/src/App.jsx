@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { isSupabaseConfigured, supabase } from './supabaseClient'
+import { supabase } from './supabaseClient'
 import Auth from './pages/Auth'
 import Home from './pages/Home'
 import ProviderProfile from './pages/ProviderProfile'
@@ -16,41 +16,11 @@ import Services from './pages/Services'
 import SearchResults from './pages/SearchResults'
 import Nav from './components/Nav'
 
-function MissingSupabaseConfig() {
-  return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-        textAlign: 'center',
-        background: '#fff',
-        color: 'var(--text-primary, #2F4F4F)',
-        fontFamily: "'DM Sans', system-ui, sans-serif",
-      }}
-    >
-      <div style={{ maxWidth: 520 }}>
-        <h1 style={{ fontSize: '1.35rem', marginBottom: 12, fontWeight: 700 }}>Supabase configuration missing</h1>
-        <p style={{ marginBottom: 16, lineHeight: 1.55, color: 'var(--text-secondary, #5C5C5C)' }}>
-          Add{' '}
-          <code style={{ background: '#f0f0f0', padding: '2px 8px', borderRadius: 6, fontSize: '0.9em' }}>VITE_SUPABASE_URL</code>{' '}
-          and{' '}
-          <code style={{ background: '#f0f0f0', padding: '2px 8px', borderRadius: 6, fontSize: '0.9em' }}>VITE_SUPABASE_ANON_KEY</code>{' '}
-          in your Vercel project → Settings → Environment Variables (Production), then redeploy. Values come from the Supabase
-          dashboard → Project Settings → API.
-        </p>
-      </div>
-    </div>
-  )
-}
-
 export default function App() {
   const location = useLocation()
   const [session, setSession] = useState(null)
   const [userProfile, setUserProfile] = useState(null)
-  const [loading, setLoading] = useState(() => isSupabaseConfigured)
+  const [loading, setLoading] = useState(true)
   /** Set when a session exists but email_confirmed_at is null — user must verify via Supabase email */
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState(null)
 
@@ -61,22 +31,23 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (!isSupabaseConfigured) return
-
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user && !session.user.email_confirmed_at) {
-        const em = session.user.email
-        await supabase.auth.signOut()
-        setPendingVerificationEmail(em)
-        setSession(null)
-        setLoading(false)
-        return
-      }
-      setPendingVerificationEmail(null)
-      setSession(session)
-      if (session) fetchProfile(session.user.id)
-      else setLoading(false)
-    })
+    supabase.auth
+      .getSession()
+      .then(async ({ data: { session } }) => {
+        if (session?.user && !session.user.email_confirmed_at) {
+          const em = session.user.email
+          await supabase.auth.signOut()
+          setPendingVerificationEmail(em)
+          setSession(null)
+          setLoading(false)
+          return
+        }
+        setPendingVerificationEmail(null)
+        setSession(session)
+        if (session) fetchProfile(session.user.id)
+        else setLoading(false)
+      })
+      .catch(() => setLoading(false))
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       void (async () => {
@@ -101,10 +72,6 @@ export default function App() {
 
     return () => subscription.unsubscribe()
   }, [])
-
-  if (!isSupabaseConfigured) {
-    return <MissingSupabaseConfig />
-  }
 
   if (loading) {
     return (
