@@ -3,7 +3,11 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { supabase } from '../supabaseClient'
 import ServiceListingCard from '../components/ServiceListingCard'
 import { galleryUrlsForService, priceLabelForService } from '../serviceListingUtils'
-import { isServiceCategory, SERVICE_CATEGORY_KEYS, SERVICE_CATEGORY_LABELS } from '../constants/serviceCategories'
+import {
+  isServiceCategory,
+  SERVICE_CATEGORY_KEYS,
+  SERVICE_CATEGORY_LABELS,
+} from '../constants/serviceCategories'
 
 function normalizeForSearch(text) {
   return (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')
@@ -11,14 +15,24 @@ function normalizeForSearch(text) {
 
 const SECTION_TABS = [
   { id: 'popular', label: 'Popular with friends' },
-  { id: 'suggested', label: 'Suggested For you' },
+  { id: 'suggested', label: 'Suggested for you' },
   { id: 'recent', label: 'Recently Viewed' },
 ]
 
 function getSectionTitle(section) {
-  if (section === 'suggested') return 'Suggested For you'
+  if (section === 'suggested') return 'Suggested for you'
   if (section === 'recent') return 'Recently Viewed'
   return 'Popular with friends'
+}
+
+/** Main “Results for …” line: prefer the search query, then category name, then section name. */
+function getResultsForLabel(query, categoryFilter, section) {
+  const q = (query || '').trim()
+  if (q) return q
+  if (categoryFilter && SERVICE_CATEGORY_LABELS[categoryFilter]) {
+    return SERVICE_CATEGORY_LABELS[categoryFilter]
+  }
+  return getSectionTitle(section)
 }
 
 function haversineKm(lat1, lon1, lat2, lon2) {
@@ -392,6 +406,11 @@ export default function SearchResults({ session }) {
     [displayedListings]
   )
 
+  const resultsForLabel = useMemo(
+    () => getResultsForLabel(query, categoryFilter, effectiveSection),
+    [query, categoryFilter, effectiveSection],
+  )
+
   const requestNearMeSort = useCallback(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       setNearMeError('Location is not available in this browser.')
@@ -422,7 +441,7 @@ export default function SearchResults({ session }) {
         <div className="figma-search-top-bar">
           <div className="figma-results-header">
             <p className="figma-results-title">
-              Results for &quot;{getSectionTitle(effectiveSection)}&quot; <span>({displayedListings.length})</span>
+              Results for &quot;{resultsForLabel}&quot; <span>({displayedListings.length})</span>
             </p>
             <Link to="/" className="figma-results-close-link">Back</Link>
           </div>

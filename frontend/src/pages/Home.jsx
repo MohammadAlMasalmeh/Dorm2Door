@@ -59,7 +59,8 @@ export default function Home({ session }) {
     }
   }, [session?.user?.id])
 
-  const defaultResultsSection = hasFriends === false ? 'suggested' : 'popular'
+  /** Search / category links open the “Suggested” results tab so the header shows the query, not “Popular with friends”. */
+  const defaultResultsSection = 'suggested'
 
   useEffect(() => { setSearchInput(queryFromUrl) }, [queryFromUrl])
   useEffect(() => { fetchProviders() }, [activeTags, sortBy])
