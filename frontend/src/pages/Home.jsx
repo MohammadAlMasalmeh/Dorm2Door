@@ -1,66 +1,21 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import ServiceListingCard from '../components/ServiceListingCard'
 import { galleryUrlsForService, priceLabelForService } from '../serviceListingUtils'
+import { SERVICE_CATEGORY_LABELS } from '../constants/serviceCategories'
+
+const HOME_CATEGORY_ORDER = ['academic', 'beauty', 'creative']
 
 function normalizeForSearch(text) {
   return (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')
 }
 
-function CarouselChevron({ dir }) {
-  return (
-    <svg
-      className="figma-cards-scroll-nav-icon"
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      {dir === 'left' ? <path d="M15 6l-6 6 6 6" /> : <path d="M9 6l6 6-6 6" />}
-    </svg>
-  )
-}
-
-/** Horizontal row of service cards — overlay arrows (retail-style), optically centered chevrons. */
-function ServiceCardsScroller({ children, label = 'services' }) {
-  const scrollerRef = useRef(null)
-
-  const scrollByCards = (direction) => {
-    const el = scrollerRef.current
-    if (!el) return
-    const card = el.querySelector('.figma-results-card')
-    const gap = 24
-    const step = card ? card.getBoundingClientRect().width + gap : 256
-    el.scrollBy({ left: direction * step, behavior: 'smooth' })
-  }
-
+/** Horizontal row of service cards — touch / trackpad / scrollbar scroll only. */
+function ServiceCardsScroller({ children }) {
   return (
     <div className="figma-cards-scroll-wrap">
-      <button
-        type="button"
-        className="figma-cards-scroll-nav figma-cards-scroll-nav--prev"
-        aria-label={`Scroll ${label} left`}
-        onClick={() => scrollByCards(-1)}
-      >
-        <CarouselChevron dir="left" />
-      </button>
-      <div ref={scrollerRef} className="figma-cards-scroll">
-        {children}
-      </div>
-      <button
-        type="button"
-        className="figma-cards-scroll-nav figma-cards-scroll-nav--next"
-        aria-label={`Scroll ${label} right`}
-        onClick={() => scrollByCards(1)}
-      >
-        <CarouselChevron dir="right" />
-      </button>
+      <div className="figma-cards-scroll">{children}</div>
     </div>
   )
 }
@@ -78,6 +33,33 @@ export default function Home({ session }) {
   const [upcomingAppointments, setUpcomingAppointments] = useState([])
   const [homeApptBusy, setHomeApptBusy] = useState(null)
   const [homeApptError, setHomeApptError] = useState('')
+  const [hasFriends, setHasFriends] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadFriends() {
+      const uid = session?.user?.id
+      if (!uid) {
+        setHasFriends(false)
+        return
+      }
+      const { data: rows } = await supabase
+        .from('friends')
+        .select('user_id, friend_id')
+        .or(`user_id.eq.${uid},friend_id.eq.${uid}`)
+      if (cancelled) return
+      const otherIds = new Set(
+        (rows || []).map((r) => (r.user_id === uid ? r.friend_id : r.user_id)),
+      )
+      setHasFriends(otherIds.size > 0)
+    }
+    loadFriends()
+    return () => {
+      cancelled = true
+    }
+  }, [session?.user?.id])
+
+  const defaultResultsSection = hasFriends === false ? 'suggested' : 'popular'
 
   useEffect(() => { setSearchInput(queryFromUrl) }, [queryFromUrl])
   useEffect(() => { fetchProviders() }, [activeTags, sortBy])
@@ -172,8 +154,15 @@ export default function Home({ session }) {
 
   function handleSearchSubmit(e) {
     e.preventDefault()
-    if (searchInput.trim()) navigate(`/?q=${encodeURIComponent(searchInput.trim())}`)
-    else navigate('/')
+    const q = searchInput.trim()
+    if (!q) {
+      navigate('/')
+      return
+    }
+    const params = new URLSearchParams({ section: defaultResultsSection, q })
+    navigate(`/search?${params.toString()}`, {
+      state: { section: defaultResultsSection, q, activeTags: [...activeTags] },
+    })
   }
 
   function handleSeeMore(sectionKey) {
@@ -186,6 +175,12 @@ export default function Home({ session }) {
         activeTags: [...activeTags],
       },
     })
+  }
+
+  function categorySearchHref(categoryKey) {
+    const params = new URLSearchParams({ section: defaultResultsSection, category: categoryKey })
+    if (queryFromUrl) params.set('q', queryFromUrl)
+    return `/search?${params.toString()}`
   }
 
   function renderServiceCard(card) {
@@ -326,19 +321,21 @@ export default function Home({ session }) {
       </div>
 
       <div className="figma-content">
-        <section className="figma-section">
-          <div className="figma-section-head">
-            <h2 className="figma-section-title">Popular with friends</h2>
-            <button type="button" className="figma-section-more" onClick={() => handleSeeMore('popular')}>See more</button>
-          </div>
-          {loading ? <div className="figma-loading"><div className="spinner" /></div> : serviceCards.length === 0 ? (
-            <p className="figma-empty">No providers found. Try different filters or be the first to offer a service!</p>
-          ) : (
-            <ServiceCardsScroller label="popular services">
-              {serviceCards.map((card) => renderServiceCard(card))}
-            </ServiceCardsScroller>
-          )}
-        </section>
+        {hasFriends !== false && (
+          <section className="figma-section">
+            <div className="figma-section-head">
+              <h2 className="figma-section-title">Popular with friends</h2>
+              <button type="button" className="figma-section-more" onClick={() => handleSeeMore('popular')}>See more</button>
+            </div>
+            {loading ? <div className="figma-loading"><div className="spinner" /></div> : serviceCards.length === 0 ? (
+              <p className="figma-empty">No providers found. Try different filters or be the first to offer a service!</p>
+            ) : (
+              <ServiceCardsScroller>
+                {serviceCards.map((card) => renderServiceCard(card))}
+              </ServiceCardsScroller>
+            )}
+          </section>
+        )}
 
         {/* Suggested For you */}
         <section className="figma-section figma-section-tight">
@@ -347,7 +344,7 @@ export default function Home({ session }) {
             <button type="button" className="figma-section-more" onClick={() => handleSeeMore('suggested')}>See more</button>
           </div>
           {!loading && serviceCards.length > 0 && (
-            <ServiceCardsScroller label="suggested services">
+            <ServiceCardsScroller>
               {serviceCards.slice(0, 6).map((card) => renderServiceCard(card))}
             </ServiceCardsScroller>
           )}
@@ -360,10 +357,28 @@ export default function Home({ session }) {
             <button type="button" className="figma-section-more" onClick={() => handleSeeMore('recent')}>See more</button>
           </div>
           {!loading && serviceCards.length > 0 && (
-            <ServiceCardsScroller label="recently viewed services">
+            <ServiceCardsScroller>
               {serviceCards.slice(2, 8).map((card) => renderServiceCard(card))}
             </ServiceCardsScroller>
           )}
+        </section>
+
+        <section className="figma-section figma-section-tight figma-sort-category-section" aria-labelledby="figma-sort-category-heading">
+          <h2 id="figma-sort-category-heading" className="figma-section-title">
+            Sort by category
+          </h2>
+          <div className="figma-sort-category-row">
+            {HOME_CATEGORY_ORDER.map((key) => (
+              <Link
+                key={key}
+                className="figma-sort-category-card"
+                to={categorySearchHref(key)}
+              >
+                <span className="figma-sort-category-swatch" aria-hidden />
+                <span className="figma-sort-category-label">{SERVICE_CATEGORY_LABELS[key]}</span>
+              </Link>
+            ))}
+          </div>
         </section>
       </div>
     </div>

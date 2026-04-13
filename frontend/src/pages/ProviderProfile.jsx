@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
+import { priceLabelForService } from '../serviceListingUtils'
+import { galleryUrlsForService } from '../utils/serviceImages'
 
 function Stars({ value, size = '1rem' }) {
   const n = Math.round(value || 0)
@@ -123,14 +125,20 @@ export default function ProviderProfile({ session }) {
     }
   }, [session?.user?.id, id, provider?.services])
 
-  const focusedServices = useMemo(() => {
-    const list = provider?.services || []
-    if (!focusServiceId) return list
-    const match = list.find((s) => String(s.id) === String(focusServiceId))
-    return match ? [match] : list
-  }, [provider?.services, focusServiceId])
+  const allServices = provider?.services || []
+  const isMultiService = allServices.length > 1
+  const focusMatch = focusServiceId
+    ? allServices.find((s) => String(s.id) === String(focusServiceId))
+    : null
+  const isServiceHub = isMultiService && !focusMatch
 
-  const portfolioSlides = useMemo(() => buildPortfolioSlides(focusedServices), [focusedServices])
+  const detailServices = useMemo(() => {
+    if (isServiceHub) return []
+    if (!isMultiService) return allServices
+    return focusMatch ? [focusMatch] : []
+  }, [allServices, isMultiService, isServiceHub, focusMatch])
+
+  const portfolioSlides = useMemo(() => buildPortfolioSlides(detailServices), [detailServices])
 
   useEffect(() => {
     if (portfolioSlides.length === 0) return
@@ -246,14 +254,16 @@ export default function ProviderProfile({ session }) {
   }))
   const maxBucket = Math.max(...ratingBuckets.map(b => b.count), 1)
 
-  const allOptions = focusedServices.flatMap(s =>
+  const allOptions = detailServices.flatMap(s =>
     (s.service_options && s.service_options.length) > 0
       ? s.service_options.map(opt => ({ ...opt, serviceName: s.name, durationMin: s.duration_minutes, serviceId: s.id }))
       : [{ id: s.id, name: s.name, price: s.price, serviceName: s.name, durationMin: s.duration_minutes, serviceId: s.id }]
   )
-  const primaryTitle = allOptions[0]
-    ? `${allOptions[0].serviceName || focusedServices[0]?.name || name}`
-    : (focusedServices[0]?.name || name)
+  const primaryTitle = isServiceHub
+    ? name
+    : allOptions[0]
+      ? `${allOptions[0].serviceName || detailServices[0]?.name || name}`
+      : (detailServices[0]?.name || name)
 
   const friendBtnLabel = {
     none: 'Add Friend',
@@ -269,10 +279,20 @@ export default function ProviderProfile({ session }) {
         <div className="listing-back-row">
           <Link to="/" className="listing-back" aria-label="Back to home">&lsaquo;</Link>
         </div>
-        <div className="listing-gallery-main" style={mainImage ? { backgroundImage: `url(${mainImage})` } : {}}>
-          {!mainImage && (
+        <div
+          className={`listing-gallery-main${isServiceHub ? ' listing-gallery-main--hub' : ''}`}
+          style={!isServiceHub && mainImage ? { backgroundImage: `url(${mainImage})` } : {}}
+        >
+          {isServiceHub ? (
+            <div className="listing-gallery-hub-copy">
+              <p className="listing-gallery-hub-title">Choose a service</p>
+              <p className="listing-gallery-hub-text">
+                This provider offers several listings. Pick one on the right to see photos and booking options for that service only.
+              </p>
+            </div>
+          ) : !mainImage ? (
             <div className="listing-gallery-placeholder">{thumbPlaceholderSvg}</div>
-          )}
+          ) : null}
           {!isOwn && session && favoriteTargetServiceId ? (
             <button
               type="button"
@@ -294,29 +314,31 @@ export default function ProviderProfile({ session }) {
             </button>
           ) : null}
         </div>
-        <div
-          className="listing-gallery-thumbs"
-          onMouseLeave={() => setHoverGalleryIndex(null)}
-        >
-          {[0, 1, 2, 3, 4].map((i) => (
-            <button
-              key={i}
-              type="button"
-              className={`listing-gallery-thumb${galleryIndex === i ? ' active' : ''}`}
-              onClick={() => {
-                if (!portfolioSlides[i]) return
-                setSelectedImage(i)
-                setHoverGalleryIndex(null)
-              }}
-              onMouseEnter={() => {
-                if (portfolioSlides[i]) setHoverGalleryIndex(i)
-              }}
-              style={portfolioSlides[i] ? { backgroundImage: `url(${portfolioSlides[i].url})` } : {}}
-            >
-              {!portfolioSlides[i] && thumbPlaceholderSvg}
-            </button>
-          ))}
-        </div>
+        {!isServiceHub && (
+          <div
+            className="listing-gallery-thumbs"
+            onMouseLeave={() => setHoverGalleryIndex(null)}
+          >
+            {[0, 1, 2, 3, 4].map((i) => (
+              <button
+                key={i}
+                type="button"
+                className={`listing-gallery-thumb${galleryIndex === i ? ' active' : ''}`}
+                onClick={() => {
+                  if (!portfolioSlides[i]) return
+                  setSelectedImage(i)
+                  setHoverGalleryIndex(null)
+                }}
+                onMouseEnter={() => {
+                  if (portfolioSlides[i]) setHoverGalleryIndex(i)
+                }}
+                style={portfolioSlides[i] ? { backgroundImage: `url(${portfolioSlides[i].url})` } : {}}
+              >
+                {!portfolioSlides[i] && thumbPlaceholderSvg}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Right: content */}
@@ -340,6 +362,11 @@ export default function ProviderProfile({ session }) {
             )}
           </div>
           <h1 className="listing-title">{primaryTitle}</h1>
+          {!isServiceHub && isMultiService && (
+            <Link to={`/provider/${id}`} className="listing-all-services-link">
+              ← All services
+            </Link>
+          )}
           <div className="listing-tags">
             <span className="listing-tag listing-tag-verified">Verified</span>
             {tags.map((t, i) => (
@@ -389,11 +416,70 @@ export default function ProviderProfile({ session }) {
 
         <div className="listing-divider" />
 
-        {/* Services */}
+        {/* Services — hub picks a service line; detail shows options for that line only */}
         <div>
-          <h2 className="listing-heading">Services</h2>
+          <h2 className="listing-heading">{isServiceHub ? 'Choose a service' : 'Services'}</h2>
           <div className="listing-services">
-            {allOptions.length === 0 ? (
+            {isServiceHub ? (
+              allServices.length === 0 ? (
+                <p className="listing-empty">No services listed yet.</p>
+              ) : (
+                allServices.map((svc) => {
+                  const urls = galleryUrlsForService(svc)
+                  const thumbUrl = urls[0] || ''
+                  const priceLabel = priceLabelForService(svc)
+                  const durationLabel = svc.duration_minutes ? `${svc.duration_minutes} min` : '30 min'
+                  const desc = (svc.description || '').trim()
+                  const descShort = desc.length > 140 ? `${desc.slice(0, 137)}…` : desc
+                  const detailTo = `/provider/${id}?service=${encodeURIComponent(svc.id)}`
+                  const hubBody = (
+                    <>
+                      <div
+                        className="listing-service-hub-thumb"
+                        style={thumbUrl ? { backgroundImage: `url(${thumbUrl})` } : {}}
+                      >
+                        {!thumbUrl && thumbPlaceholderSvg}
+                      </div>
+                      <div className="listing-service-hub-info">
+                        <p className="listing-service-name">{svc.name}</p>
+                        {descShort ? <p className="listing-service-hub-desc">{descShort}</p> : null}
+                      </div>
+                      <div className="listing-service-price-block listing-service-hub-prices">
+                        <span className="listing-service-price">{priceLabel}</span>
+                        <span className="listing-service-duration">{durationLabel}</span>
+                      </div>
+                    </>
+                  )
+                  return isOwn ? (
+                    <div key={svc.id} className="listing-service-card listing-service-hub-card">
+                      <Link to={detailTo} className="listing-service-hub-main" aria-label={`Preview ${svc.name}`}>
+                        {hubBody}
+                      </Link>
+                      <div className="listing-service-right listing-service-hub-actions">
+                        <Link to={`/my-services/edit/${svc.id}`} className="listing-service-select listing-service-select--secondary">
+                          Edit
+                        </Link>
+                        <Link to={detailTo} className="listing-service-select">
+                          View
+                        </Link>
+                      </div>
+                    </div>
+                  ) : (
+                    <Link
+                      key={svc.id}
+                      to={detailTo}
+                      className="listing-service-card listing-service-hub-card"
+                      aria-label={`${session ? 'Book' : 'View'} ${svc.name}`}
+                    >
+                      {hubBody}
+                      <span className="listing-service-select listing-service-hub-card-cta">
+                        {session ? 'Choose' : 'View options'}
+                      </span>
+                    </Link>
+                  )
+                })
+              )
+            ) : allOptions.length === 0 ? (
               <p className="listing-empty">No services listed yet.</p>
             ) : (
               allOptions.map(opt => (

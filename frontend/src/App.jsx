@@ -109,7 +109,7 @@ export default function App() {
           <Route path="/messages/:conversationId" element={<Messages session={session} userProfile={userProfile} />} />
           <Route path="/discover" element={<Discover />} />
           <Route path="/services/all" element={<Navigate to="/discover" replace />} />
-          <Route path="/search" element={<SearchResults />} />
+          <Route path="/search" element={<SearchResults session={session} />} />
           <Route path="/services/stats" element={<Navigate to="/services#stats" replace />} />
           <Route path="/services/availability" element={<Navigate to="/services" replace />} />
           <Route path="/services" element={(userProfile?.role === 'provider' || session?.user?.user_metadata?.role === 'provider') ? <Services session={session} userProfile={userProfile} /> : <Navigate to="/" replace />} />

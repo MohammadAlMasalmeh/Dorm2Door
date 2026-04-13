@@ -388,8 +388,7 @@ export default function Profile({ session, userProfile, onUpdate }) {
   const aboutText = bio || provider?.bio || ''
   const isProviderProfile =
     userProfile?.role === 'provider' ||
-    session?.user?.user_metadata?.role === 'provider' ||
-    Boolean(provider)
+    session?.user?.user_metadata?.role === 'provider'
   const visibleTabs = isProviderProfile
     ? [
         { id: 'services', label: 'Services' },

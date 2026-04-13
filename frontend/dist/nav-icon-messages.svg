@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-  <!-- Sketch-style speech bubble (rounded body + tail) and three text lines -->
-  <g stroke="#1b1b1b" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M8.2 7.4h14.6c1.15.08 1.95.92 2 2v7.8c-.05 1.1-.85 1.92-2 2h-7.9l-3.4 4.6.65-4.6H8.2c-1.15-.08-1.95-.9-2-2V9.4c.05-1.08.85-1.92 2-2z"/>
-    <path d="M11.2 11.4h9.8M11.2 14.6h9.2M11.2 17.6h5.4"/>
-  </g>
-</svg>

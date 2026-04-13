@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { supabase } from '../supabaseClient'
 import ServiceListingCard from '../components/ServiceListingCard'
 import { galleryUrlsForService, priceLabelForService } from '../serviceListingUtils'
+import { isServiceCategory, SERVICE_CATEGORY_KEYS, SERVICE_CATEGORY_LABELS } from '../constants/serviceCategories'
 
 function normalizeForSearch(text) {
   return (text || '').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')
@@ -152,6 +153,7 @@ function mapProviderToServiceCards(provider) {
     const serviceName = service?.name || 'Service'
     const optionNames = (service.service_options || []).map((o) => o?.name).filter(Boolean).join(' ')
     const serviceDesc = (service?.description || '').trim()
+    const serviceCat = (service?.category || '').toString().trim().toLowerCase()
     const { minPriceNum, maxPriceNum } = priceFieldsForService(service)
 
     return {
@@ -170,15 +172,17 @@ function mapProviderToServiceCards(provider) {
       latitude: Number.isFinite(latitude) ? latitude : null,
       longitude: Number.isFinite(longitude) ? longitude : null,
       tags,
-      matchHaystack: `${serviceName} ${optionNames} ${serviceDesc} ${providerName} ${tags.join(' ')} ${bio}`,
+      serviceCategory: serviceCat,
+      matchHaystack: `${serviceName} ${optionNames} ${serviceDesc} ${providerName} ${tags.join(' ')} ${bio} ${serviceCat}`,
     }
   })
 }
 
-export default function SearchResults() {
-  const [searchParams] = useSearchParams()
+export default function SearchResults({ session }) {
+  const [searchParams, setSearchParams] = useSearchParams()
   const location = useLocation()
   const navigate = useNavigate()
+  const [hasFriends, setHasFriends] = useState(null)
   const [loading, setLoading] = useState(true)
   const [listings, setListings] = useState([])
   const [activeTopic, setActiveTopic] = useState('')
@@ -193,8 +197,50 @@ export default function SearchResults() {
 
   const rawSection = searchParams.get('section') || location.state?.section || 'popular'
   const section = SECTION_TABS.some((t) => t.id === rawSection) ? rawSection : 'popular'
+  const effectiveSection = hasFriends === false && section === 'popular' ? 'suggested' : section
   const query = (searchParams.get('q') || location.state?.q || '').trim()
   const activeTags = Array.isArray(location.state?.activeTags) ? location.state.activeTags : []
+  const categoryParam = (searchParams.get('category') || '').trim().toLowerCase()
+  const categoryFilter = isServiceCategory(categoryParam) ? categoryParam : ''
+
+  const visibleSectionTabs = useMemo(
+    () => SECTION_TABS.filter((t) => t.id !== 'popular' || hasFriends !== false),
+    [hasFriends],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadFriends() {
+      const uid = session?.user?.id
+      if (!uid) {
+        setHasFriends(false)
+        return
+      }
+      const { data: rows } = await supabase
+        .from('friends')
+        .select('user_id, friend_id')
+        .or(`user_id.eq.${uid},friend_id.eq.${uid}`)
+      if (cancelled) return
+      const otherIds = new Set(
+        (rows || []).map((r) => (r.user_id === uid ? r.friend_id : r.user_id)),
+      )
+      setHasFriends(otherIds.size > 0)
+    }
+    loadFriends()
+    return () => {
+      cancelled = true
+    }
+  }, [session?.user?.id])
+
+  useEffect(() => {
+    if (hasFriends !== false) return
+    if (section !== 'popular') return
+    const params = new URLSearchParams(searchParams)
+    params.set('section', 'suggested')
+    if (!query) params.delete('q')
+    else params.set('q', query)
+    navigate(`/search?${params.toString()}`, { replace: true, state: location.state })
+  }, [hasFriends, section, searchParams, query, navigate, location.state])
 
   const goToSection = useCallback(
     (nextId) => {
@@ -212,9 +258,9 @@ export default function SearchResults() {
     async function fetchData() {
       setLoading(true)
       const fieldsWithCount =
-        'id, bio, tags, avg_rating, review_count, latitude, longitude, users (display_name, avatar_url), services (id, name, description, image_url, image_urls, price, service_options (name, price))'
+        'id, bio, tags, avg_rating, review_count, latitude, longitude, users (display_name, avatar_url), services (id, name, description, category, image_url, image_urls, price, service_options (name, price))'
       const fieldsLegacy =
-        'id, bio, tags, avg_rating, latitude, longitude, users (display_name, avatar_url), services (id, name, description, image_url, image_urls, price, service_options (name, price))'
+        'id, bio, tags, avg_rating, latitude, longitude, users (display_name, avatar_url), services (id, name, description, category, image_url, image_urls, price, service_options (name, price))'
 
       async function runQuery(fields) {
         return supabase
@@ -224,9 +270,9 @@ export default function SearchResults() {
       }
 
       const fieldsLegacyNoMulti =
-        'id, bio, tags, avg_rating, latitude, longitude, users (display_name, avatar_url), services (id, name, description, image_url, price, service_options (name, price))'
+        'id, bio, tags, avg_rating, latitude, longitude, users (display_name, avatar_url), services (id, name, description, category, image_url, price, service_options (name, price))'
       const fieldsWithCountNoMulti =
-        'id, bio, tags, avg_rating, review_count, latitude, longitude, users (display_name, avatar_url), services (id, name, description, image_url, price, service_options (name, price))'
+        'id, bio, tags, avg_rating, review_count, latitude, longitude, users (display_name, avatar_url), services (id, name, description, category, image_url, price, service_options (name, price))'
 
       let data
       const attempts = [fieldsWithCount, fieldsLegacy, fieldsWithCountNoMulti, fieldsLegacyNoMulti]
@@ -271,25 +317,13 @@ export default function SearchResults() {
     return () => { mounted = false }
   }, [])
 
-  const topicButtons = useMemo(() => {
-    const set = new Set()
-    if (query) set.add(query.toLowerCase())
-    activeTags.forEach(tag => {
-      const normalized = (tag || '').trim().toLowerCase()
-      if (normalized) set.add(normalized)
-    })
-    listings.forEach((row) => {
-      (row.tags || []).forEach((tag) => {
-        const normalized = (tag || '').trim().toLowerCase()
-        if (normalized) set.add(normalized)
-      })
-    })
-    return [...set].slice(0, 12)
-  }, [query, activeTags, listings])
-
   useEffect(() => {
+    if (categoryFilter) {
+      setActiveTopic(categoryFilter)
+      return
+    }
     setActiveTopic(query ? query.toLowerCase() : '')
-  }, [query])
+  }, [query, categoryFilter])
 
   useEffect(() => {
     function onDocMouseDown(e) {
@@ -303,22 +337,51 @@ export default function SearchResults() {
 
   const filteredListings = useMemo(() => {
     const normalizedQuery = normalizeForSearch(query)
-    const normalizedTopic = normalizeForSearch(activeTopic)
 
     let base = listings
-    if (section === 'suggested' && (normalizedQuery || activeTags.length)) {
+    if (effectiveSection === 'suggested' && (normalizedQuery || activeTags.length)) {
       base = listings.filter((row) => {
         const normalizedHaystack = normalizeForSearch(row.matchHaystack)
         if (normalizedQuery && normalizedHaystack.includes(normalizedQuery)) return true
         return activeTags.some(tag => normalizedHaystack.includes(normalizeForSearch(tag)))
       })
-    } else if (section === 'recent') {
+    } else if (effectiveSection === 'recent') {
       base = [...listings].reverse()
     }
 
+    if (isServiceCategory(activeTopic)) {
+      return base.filter((row) => (row.serviceCategory || '') === activeTopic)
+    }
+
+    const normalizedTopic = normalizeForSearch(activeTopic)
     if (!normalizedTopic) return base
     return base.filter((row) => normalizeForSearch(row.matchHaystack).includes(normalizedTopic))
-  }, [listings, section, query, activeTags, activeTopic])
+  }, [listings, effectiveSection, query, activeTags, activeTopic])
+
+  const onCategoryPillClick = useCallback(
+    (key) => {
+      if (activeTopic === key) {
+        setSearchParams(
+          (prev) => {
+            const next = new URLSearchParams(prev)
+            next.delete('category')
+            return next
+          },
+          { replace: true },
+        )
+        return
+      }
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev)
+          next.set('category', key)
+          return next
+        },
+        { replace: true },
+      )
+    },
+    [activeTopic, setSearchParams],
+  )
 
   const displayedListings = useMemo(() => {
     return sortListings(filteredListings, sortKey, userLatLng)
@@ -359,17 +422,17 @@ export default function SearchResults() {
         <div className="figma-search-top-bar">
           <div className="figma-results-header">
             <p className="figma-results-title">
-              Results for &quot;{getSectionTitle(section)}&quot; <span>({displayedListings.length})</span>
+              Results for &quot;{getSectionTitle(effectiveSection)}&quot; <span>({displayedListings.length})</span>
             </p>
             <Link to="/" className="figma-results-close-link">Back</Link>
           </div>
           <nav className="figma-results-section-tabs" aria-label="Home sections">
-            {SECTION_TABS.map(({ id, label }) => (
+            {visibleSectionTabs.map(({ id, label }) => (
               <button
                 key={id}
                 type="button"
-                className={`figma-results-section-tab${section === id ? ' active' : ''}`}
-                aria-current={section === id ? 'page' : undefined}
+                className={`figma-results-section-tab${effectiveSection === id ? ' active' : ''}`}
+                aria-current={effectiveSection === id ? 'page' : undefined}
                 onClick={() => goToSection(id)}
               >
                 {label}
@@ -421,20 +484,19 @@ export default function SearchResults() {
               : `Sorted by distance from you. ${withMapPinCount === displayedListings.length ? 'All' : `${withMapPinCount} of ${displayedListings.length}`} listings have a map pin; the rest are listed after them.`}
           </p>
         ) : null}
-        {topicButtons.length > 0 && (
-          <div className="figma-results-topics">
-            {topicButtons.map((topic) => (
-              <button
-                key={topic}
-                type="button"
-                className={`figma-results-topic-btn${topic === activeTopic ? ' active' : ''}`}
-                onClick={() => setActiveTopic(topic)}
-              >
-                {topic.replace(/\b\w/g, c => c.toUpperCase())}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="figma-results-topics">
+          {SERVICE_CATEGORY_KEYS.map((key) => (
+            <button
+              key={key}
+              type="button"
+              className={`figma-results-topic-btn${activeTopic === key ? ' active' : ''}`}
+              aria-pressed={activeTopic === key}
+              onClick={() => onCategoryPillClick(key)}
+            >
+              {SERVICE_CATEGORY_LABELS[key]}
+            </button>
+          ))}
+        </div>
         {loading ? (
           <div className="figma-loading"><div className="spinner" /></div>
         ) : displayedListings.length === 0 ? (

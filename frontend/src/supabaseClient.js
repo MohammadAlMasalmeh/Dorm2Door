@@ -15,7 +15,8 @@ export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '')
 
 /**
  * URL Supabase puts in confirmation emails (defaults to Dashboard Site URL if omitted).
- * Uses the page origin in the browser so production users are not sent to localhost.
+ * In the browser, uses the current origin so production users are not sent to localhost.
+ * On Vercel, set VITE_SITE_URL (e.g. https://your-app.vercel.app) for non-browser contexts.
  * Add the same URL(s) under Supabase → Authentication → URL Configuration → Redirect URLs.
  */
 export function getAuthEmailRedirectTo() {
