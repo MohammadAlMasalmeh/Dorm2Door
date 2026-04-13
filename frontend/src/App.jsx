@@ -103,7 +103,7 @@ export default function App() {
           <Route path="/user/:id" element={<UserProfile session={session} />} />
           <Route path="/provider/:id" element={<ProviderProfile session={session} />} />
           <Route path="/book/:providerId/:serviceId" element={<BookAppointment session={session} />} />
-          <Route path="/appointments" element={<Appointments session={session} userProfile={userProfile} />} />
+          <Route path="/appointments" element={<Appointments session={session} />} />
           <Route path="/my-services" element={<ProviderSetup session={session} userProfile={userProfile} onUpdate={() => fetchProfile(session.user.id)} />} />
           <Route path="/my-services/new" element={<CreateListing session={session} userProfile={userProfile} onUpdate={() => fetchProfile(session.user.id)} />} />
           <Route path="/my-services/edit/:serviceId" element={<CreateListing session={session} userProfile={userProfile} onUpdate={() => fetchProfile(session.user.id)} />} />

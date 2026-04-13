@@ -265,6 +265,14 @@ export default function ProviderProfile({ session }) {
       ? `${allOptions[0].serviceName || detailServices[0]?.name || name}`
       : (detailServices[0]?.name || name)
 
+  /** Hub cards use service.description; detail listing should match, not only provider.bio. */
+  const serviceOverviewDescription =
+    !isServiceHub && detailServices[0]
+      ? (detailServices[0].description || '').trim()
+      : ''
+  const listingOverviewText =
+    serviceOverviewDescription || (provider.bio || '').trim()
+
   const friendBtnLabel = {
     none: 'Add Friend',
     pending_sent: 'Pending',
@@ -406,13 +414,13 @@ export default function ProviderProfile({ session }) {
           )}
         </div>
 
-        {/* Overview */}
-        {provider.bio && (
+        {/* Overview — service short bio on detail; provider bio on hub or fallback */}
+        {listingOverviewText ? (
           <div>
             <h2 className="listing-heading">Overview</h2>
-            <p className="listing-overview">{provider.bio}</p>
+            <p className="listing-overview">{listingOverviewText}</p>
           </div>
-        )}
+        ) : null}
 
         <div className="listing-divider" />
 
