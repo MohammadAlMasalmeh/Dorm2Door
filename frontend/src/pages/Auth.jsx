@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../supabaseClient'
+import { getAuthEmailRedirectTo, supabase } from '../supabaseClient'
 
 function emailNeedsVerificationMessage(msg) {
   const m = (msg || '').toLowerCase()
@@ -83,7 +83,12 @@ export default function Auth({ pendingVerificationEmail = null, onClearPendingVe
       return
     }
     setResendLoading(true)
-    const { error: resendErr } = await supabase.auth.resend({ type: 'signup', email: addr })
+    const emailRedirectTo = getAuthEmailRedirectTo()
+    const { error: resendErr } = await supabase.auth.resend({
+      type: 'signup',
+      email: addr,
+      ...(emailRedirectTo ? { options: { emailRedirectTo } } : {}),
+    })
     setResendLoading(false)
     if (resendErr) setResendMsg(resendErr.message)
     else setResendMsg('If an account exists for that email, we sent a new confirmation link.')
@@ -125,10 +130,14 @@ export default function Auth({ pendingVerificationEmail = null, onClearPendingVe
       return
     }
     setLoading(true)
+    const emailRedirectTo = getAuthEmailRedirectTo()
     const { data, error: signErr } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: displayName, role } },
+      options: {
+        data: { full_name: displayName, role },
+        ...(emailRedirectTo ? { emailRedirectTo } : {}),
+      },
     })
     setLoading(false)
     if (signErr) {

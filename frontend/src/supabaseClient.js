@@ -12,3 +12,19 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '')
+
+/**
+ * URL Supabase puts in confirmation emails (defaults to Dashboard Site URL if omitted).
+ * Uses the page origin in the browser so production users are not sent to localhost.
+ * Add the same URL(s) under Supabase → Authentication → URL Configuration → Redirect URLs.
+ */
+export function getAuthEmailRedirectTo() {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin
+  }
+  const fromEnv = import.meta.env.VITE_SITE_URL
+  if (typeof fromEnv === 'string' && fromEnv.trim()) {
+    return fromEnv.trim().replace(/\/$/, '')
+  }
+  return undefined
+}
