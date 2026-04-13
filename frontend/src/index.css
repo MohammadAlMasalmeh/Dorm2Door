@@ -328,6 +328,14 @@ body {
   max-width: none;
 }
 
+/* Create / edit listing — full-bleed beige (match form canvas edge-to-edge) */
+.main-content:has(.listing-create-page) {
+  background: #e8e4dc;
+  padding: 0;
+  max-width: none;
+  min-height: calc(100vh - var(--nav-h, 72px));
+}
+
 .sidebar {
   width: 200px;
   flex-shrink: 0;
@@ -6128,8 +6136,8 @@ textarea.form-input {
 /* ── Create listing (/my-services/new, /my-services/edit/:id) ── */
 .listing-create-page {
   width: 100%;
-  max-width: 1100px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
   padding: 24px 24px 48px;
   box-sizing: border-box;
   background: #e8e4dc;
@@ -6138,6 +6146,8 @@ textarea.form-input {
 
 .listing-create-inner {
   background: transparent;
+  max-width: 1100px;
+  margin: 0 auto;
 }
 
 .listing-create-header {
