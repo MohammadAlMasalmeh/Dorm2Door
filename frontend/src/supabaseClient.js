@@ -2,16 +2,31 @@ import { createClient } from '@supabase/supabase-js'
 
 /** For verified-only access: Supabase Dashboard → Authentication → Providers → Email → enable “Confirm email”. */
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const supabaseUrl = typeof import.meta.env.VITE_SUPABASE_URL === 'string' ? import.meta.env.VITE_SUPABASE_URL.trim() : ''
+const supabaseAnonKey =
+  typeof import.meta.env.VITE_SUPABASE_ANON_KEY === 'string' ? import.meta.env.VITE_SUPABASE_ANON_KEY.trim() : ''
 
-if (!supabaseUrl || !supabaseAnonKey) {
+/**
+ * True when real Supabase credentials are present at build time.
+ * If false, `supabase` uses a placeholder client so the bundle does not throw on import
+ * (createClient('', '') throws "supabaseUrl is required" — which caused a blank page on Vercel without env vars).
+ */
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
+
+if (!isSupabaseConfigured) {
   console.error(
-    'Dorm2Door: Missing Supabase env. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env (see .env.example).'
+    'Dorm2Door: Missing Supabase env. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (e.g. in Vercel → Settings → Environment Variables), then redeploy.'
   )
 }
 
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '')
+/** Placeholder values satisfy createClient(); real requests must be gated on isSupabaseConfigured. */
+const PLACEHOLDER_URL = 'https://invalid-placeholder.supabase.co'
+const PLACEHOLDER_KEY = 'sb-placeholder-anon-key-not-for-production'
+
+export const supabase = createClient(
+  isSupabaseConfigured ? supabaseUrl : PLACEHOLDER_URL,
+  isSupabaseConfigured ? supabaseAnonKey : PLACEHOLDER_KEY
+)
 
 /**
  * URL Supabase puts in confirmation emails (defaults to Dashboard Site URL if omitted).
