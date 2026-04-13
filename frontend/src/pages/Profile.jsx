@@ -158,7 +158,7 @@ export default function Profile({ session, userProfile, onUpdate }) {
         providerServicesRes,
         providerReviewsRes,
         customerReviewsRes,
-        favoritedRes,
+        favoritedIdsRes,
         completedApptsRes,
       ] = await Promise.all([
         supabase
@@ -179,14 +179,7 @@ export default function Profile({ session, userProfile, onUpdate }) {
           .order('created_at', { ascending: false }),
         supabase
           .from('service_favorites')
-          .select(
-            `created_at,
-             services (
-               id, name, description, image_url, image_urls, provider_id,
-               service_options (id, name, price),
-               providers ( location, avg_rating, users (display_name, avatar_url) )
-             )`,
-          )
+          .select('service_id, created_at')
           .eq('user_id', uid)
           .order('created_at', { ascending: false }),
         supabase
@@ -266,10 +259,23 @@ export default function Profile({ session, userProfile, onUpdate }) {
         setCustomerReviews([])
       }
 
-      const favRows = favoritedRes.data || []
-      const favList = favRows
+      const favIdRows = favoritedIdsRes.data || []
+      const favServiceIds = [...new Set(favIdRows.map((r) => r.service_id).filter(Boolean))]
+      let servicesById = {}
+      if (favServiceIds.length > 0) {
+        const { data: favSvcRows } = await supabase
+          .from('services')
+          .select(
+            `id, name, description, image_url, image_urls, provider_id,
+             service_options (id, name, price),
+             providers ( location, avg_rating, users (display_name, avatar_url) )`,
+          )
+          .in('id', favServiceIds)
+        servicesById = Object.fromEntries((favSvcRows || []).map((s) => [s.id, s]))
+      }
+      const favList = favIdRows
         .map((row) => {
-          const s = row.services
+          const s = servicesById[row.service_id]
           if (!s?.id) return null
           const opts = s.service_options || []
           return {

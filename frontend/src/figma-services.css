@@ -121,10 +121,16 @@
   min-height: 120px;
 }
 
-/* Provider overview: appointment cards in a row under tabs */
+/* Appointment cards grid: fixed tile size so partial rows do not stretch */
+.services-provider-appt-cards {
+  --appt-card-fixed-width: 300px;
+  --appt-card-fixed-height: 292px;
+}
+
 .services-provider-appt-cards .bookings-card {
-  flex: 1 1 280px;
-  max-width: 400px;
+  flex: 0 0 var(--appt-card-fixed-width);
+  width: var(--appt-card-fixed-width);
+  max-width: var(--appt-card-fixed-width);
   background: #fff;
   border: 1px solid #3e4e47;
 }
@@ -133,7 +139,10 @@
 .services-page .services-provider-appt-cards .bookings-card {
   display: flex;
   flex-direction: column;
-  min-height: 292px;
+  height: var(--appt-card-fixed-height, 292px);
+  min-height: var(--appt-card-fixed-height, 292px);
+  max-height: var(--appt-card-fixed-height, 292px);
+  overflow: hidden;
   box-sizing: border-box;
   border-radius: 16px;
   padding: 18px 16px 16px;
@@ -144,6 +153,8 @@
   flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -162,6 +173,10 @@
 .services-page .services-provider-appt-cards .bookings-card-service {
   flex: 1;
   min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   word-break: break-word;
   hyphens: auto;
 }
@@ -182,8 +197,18 @@
 }
 
 .services-page .services-provider-appt-cards .bookings-card-meta--row .bookings-card-meta-text {
-  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   line-height: 1.38;
+}
+
+.services-page .services-provider-appt-cards .bookings-card-person-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .services-page .services-provider-appt-cards .bookings-card-actions {
@@ -558,17 +583,24 @@
 }
 
 .services-stat-graph-xlabels {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: repeat(var(--stat-graph-cols, 12), minmax(0, 1fr));
+  column-gap: 4px;
+  /* Match Services.jsx StatTrendModal SVG: padL=44, padR=16, W=560 */
+  padding-left: calc(100% * 44 / 560);
+  padding-right: calc(100% * 16 / 560);
+  box-sizing: border-box;
 }
 
 .services-stat-graph-xlabel {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   color: #3e4e47;
-  opacity: 0.65;
+  opacity: 0.7;
+  text-align: center;
+  white-space: nowrap;
+  line-height: 1.2;
+  min-width: 0;
 }
 
 /* Appointments tabs */

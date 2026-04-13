@@ -42,6 +42,13 @@ function formatMonthLabel(key) {
   return new Date(y, m - 1, 1).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
 }
 
+/** Compact month text for chart x-axis (single row, matches SVG viewBox width). */
+function formatMonthAxisLabel(key) {
+  const [y, m] = key.split('-').map(Number)
+  if (!y || !m) return key
+  return new Date(y, m - 1, 1).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
+}
+
 /** Inclusive month range from start through endMonth (same year/month as `now`). */
 function eachMonthKeyBetween(start, endCap) {
   const keys = []
@@ -177,10 +184,13 @@ function StatTrendModal({ metric, range, onRangeChange, onClose, points, formatY
           </svg>
         )}
         {points.length > 0 && (
-          <div className="services-stat-graph-xlabels">
+          <div
+            className="services-stat-graph-xlabels"
+            style={{ '--stat-graph-cols': points.length }}
+          >
             {points.map((p) => (
-              <span key={p.key} className="services-stat-graph-xlabel">
-                {formatMonthLabel(p.key)}
+              <span key={p.key} className="services-stat-graph-xlabel" title={formatMonthLabel(p.key)}>
+                {formatMonthAxisLabel(p.key)}
               </span>
             ))}
           </div>

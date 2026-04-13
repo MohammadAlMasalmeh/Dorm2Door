@@ -115,7 +115,7 @@ export default function Nav({ session, userProfile }) {
     location.pathname.startsWith('/profile') ||
     location.pathname.startsWith('/discover') ||
     location.pathname.startsWith('/messages') ||
-    (!isProvider && location.pathname.startsWith('/appointments')) ||
+    location.pathname.startsWith('/appointments') ||
     (isProvider && location.pathname.startsWith('/services') && !location.pathname.startsWith('/services/all'))
 
   // Fetch notifications and subscribe to realtime
@@ -331,19 +331,17 @@ export default function Nav({ session, userProfile }) {
                 </span>
                 Discover
               </NavLink>
-              {!isProvider ? (
-                <NavLink
-                  to="/appointments"
-                  role="menuitem"
-                  className={({ isActive }) => `nav-profile-dropdown-item${isActive ? ' active' : ''}`}
-                  onClick={() => setShowProfileDropdown(false)}
-                >
-                  <span className="nav-profile-dropdown-icon" aria-hidden>
-                    <CalendarIcon />
-                  </span>
-                  Bookings
-                </NavLink>
-              ) : null}
+              <NavLink
+                to="/appointments"
+                role="menuitem"
+                className={({ isActive }) => `nav-profile-dropdown-item${isActive ? ' active' : ''}`}
+                onClick={() => setShowProfileDropdown(false)}
+              >
+                <span className="nav-profile-dropdown-icon" aria-hidden>
+                  <CalendarIcon />
+                </span>
+                Bookings
+              </NavLink>
               <NavLink
                 to="/messages"
                 role="menuitem"
@@ -368,6 +366,19 @@ export default function Nav({ session, userProfile }) {
                   Services
                 </NavLink>
               ) : null}
+              <div className="nav-profile-dropdown-footer">
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="nav-profile-dropdown-signout"
+                  onClick={() => {
+                    setShowProfileDropdown(false)
+                    void supabase.auth.signOut()
+                  }}
+                >
+                  Sign out
+                </button>
+              </div>
             </div>
           )}
         </div>
